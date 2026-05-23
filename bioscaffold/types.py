@@ -159,3 +159,10 @@ class CheckpointResult:
 class SnapshotRef:
     snapshot_id: str
     genome_hash: str
+
+
+@dataclass(frozen=True)
+class RecycleReceipt:
+    archive_ref: str
+    item_type: str
+    metadata: dict[str, Any]
