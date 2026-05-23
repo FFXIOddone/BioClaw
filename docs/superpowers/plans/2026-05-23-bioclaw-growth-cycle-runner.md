@@ -305,7 +305,7 @@ git commit -m "Add immune memory loading"
 - Create: `tests/test_growth.py`
 - Create: `bioscaffold/growth.py`
 
-- [ ] **Step 1: Write failing growth runner tests**
+- [x] **Step 1: Write failing growth runner tests**
 
 Create `tests/test_growth.py`:
 
@@ -395,13 +395,13 @@ def test_growth_cycle_injects_bacteria_and_quarantines_with_immune_memory():
     assert result.turn.immune_events == ("immune.quarantine.plasmid.injected.fake_done.v1",)
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_growth.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.growth'`.
 
-- [ ] **Step 3: Implement growth runner**
+- [x] **Step 3: Implement growth runner**
 
 Create `bioscaffold/growth.py`:
 
@@ -529,13 +529,13 @@ class GrowthCycleRunner:
         )
 ```
 
-- [ ] **Step 4: Run growth tests**
+- [x] **Step 4: Run growth tests**
 
 Run: `python -m pytest tests/test_growth.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_growth.py bioscaffold/growth.py
