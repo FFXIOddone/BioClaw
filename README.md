@@ -26,6 +26,32 @@ Validate the BioComponent registry:
 pytest tests/test_component_cards.py tests/test_card_registry.py -v
 ```
 
+## OpenClaw Runnable Entry Point
+
+BioScaffold exposes a noninteractive product workflow command that OpenClaw can call from the workspace:
+
+```powershell
+python -m bioscaffold run-product .\request.json --output .\delivery-report.json
+```
+
+Minimal request:
+
+```json
+{
+  "organism_id": "organism_000001",
+  "product_name": "Authentication Module",
+  "requirements": [
+    {
+      "requirement_id": "password-policy",
+      "text": "Require password policy.",
+      "artifact_type": "code"
+    }
+  ]
+}
+```
+
+If `--output` is omitted, the delivery report JSON is written to stdout. Reports include the terminal state, archive ref, generation IDs, task IDs, validation refs, assembly refs, immune events, and project microtask count.
+
 ## Planning Artifacts
 
 - Design spec: `docs/superpowers/specs/2026-05-22-bioscaffold-os-design.md`
