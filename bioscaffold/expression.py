@@ -154,7 +154,7 @@ class ExpressionEngine:
                 molecule_type=MoleculeType.PROTEIN,
                 content=f"artifact fragment: {transcript.content}",
                 source_refs=(spliced_ref,),
-                markers=("artifact_fragment",),
+                markers=tuple(dict.fromkeys((*transcript.markers, "artifact_fragment"))),
             )
         )
         if duplicate is not None:

@@ -13,6 +13,10 @@ class MoleculeType(str, Enum):
     SPLICED_TRANSCRIPT = "spliced_transcript"
     PLASMID = "plasmid"
     PROTEIN = "protein"
+    MODULE = "module"
+    SUBSYSTEM = "subsystem"
+    CAPABILITY = "capability"
+    DELIVERY_PACKAGE = "delivery_package"
     ANTIGEN = "antigen"
     ANTIBODY = "antibody"
 
