@@ -458,7 +458,7 @@ git commit -m "Add gene expression engine"
 - Create: `tests/test_organism.py`
 - Create: `bioscaffold/organism.py`
 
-- [ ] **Step 1: Write failing organism tests**
+- [x] **Step 1: Write failing organism tests**
 
 Create `tests/test_organism.py`:
 
@@ -541,13 +541,13 @@ def test_product_organism_requires_reviewed_generation():
         )
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_organism.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.organism'`.
 
-- [ ] **Step 3: Implement product organism**
+- [x] **Step 3: Implement product organism**
 
 Create `bioscaffold/organism.py`:
 
@@ -628,13 +628,13 @@ class ProductOrganism:
         )
 ```
 
-- [ ] **Step 4: Run organism tests**
+- [x] **Step 4: Run organism tests**
 
 Run: `python -m pytest tests/test_organism.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_organism.py bioscaffold/organism.py
