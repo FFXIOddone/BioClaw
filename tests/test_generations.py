@@ -61,6 +61,28 @@ def test_generation_review_promotes_only_closed_turn_outputs():
     assert reviewed.quarantined_structures == ()
 
 
+def test_generation_review_does_not_promote_missing_output_refs():
+    turn = TurnEngine().close(
+        Turn(
+            turn_id="turn_000001",
+            generation_id="gen_000001",
+            organism_id="organism_000001",
+            tasks=(terminal_task("task_ghost", TaskState.COMPLETE, "structure.missing"),),
+        )
+    )
+
+    reviewed = GenerationEngine().review(
+        Generation(
+            generation_id="gen_000001",
+            organism_id="organism_000001",
+            turns=(turn,),
+        ),
+        MoleculeRegistry(),
+    )
+
+    assert reviewed.promoted_structures == ()
+
+
 def test_generation_review_preserves_quarantine_and_immune_memory():
     registry = MoleculeRegistry()
     registry.add(
