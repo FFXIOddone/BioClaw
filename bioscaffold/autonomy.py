@@ -574,10 +574,11 @@ def _is_git_commit(tokens: tuple[str, ...]) -> bool:
 
 
 def _has_git_subcommand(tokens: tuple[str, ...], subcommand: str) -> bool:
-    return any(
-        token in {"git", "git.exe"} and index + 1 < len(tokens) and tokens[index + 1] == subcommand
-        for index, token in enumerate(tokens)
-    )
+    if subcommand not in {"commit", "push"}:
+        return False
+    if not any(token in {"git", "git.exe"} for token in tokens):
+        return False
+    return subcommand in tokens
 
 
 def _run_shell(command: str, *, cwd: Path) -> CommandRecord:

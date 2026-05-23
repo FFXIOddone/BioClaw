@@ -158,12 +158,67 @@ def test_autonomous_policy_denies_run_command_git_commit_bypasses(tmp_path):
     denied = [
         AutonomousWorkItem("task.git_commit", AutonomousOperation.RUN_COMMAND, command="git commit -m bypass"),
         AutonomousWorkItem("task.git_exe_commit", AutonomousOperation.RUN_COMMAND, command="git.exe commit -m bypass"),
+        AutonomousWorkItem(
+            "task.git_flag_commit",
+            AutonomousOperation.RUN_COMMAND,
+            command="git -c foo=bar commit --allow-empty -m bypass",
+        ),
+        AutonomousWorkItem(
+            "task.git_exe_flag_commit",
+            AutonomousOperation.RUN_COMMAND,
+            command="git.exe -c foo=bar commit --allow-empty -m bypass",
+        ),
     ]
 
     for item in denied:
         decision = policy.authorize(item)
         assert decision.allowed is False
         assert decision.reason
+
+
+def test_autonomous_policy_denies_run_command_git_push_bypasses(tmp_path):
+    policy = AutonomousPolicy.default(workspace_path=tmp_path)
+
+    denied = [
+        AutonomousWorkItem("task.git_push", AutonomousOperation.RUN_COMMAND, command="git push origin main"),
+        AutonomousWorkItem(
+            "task.git_flag_push",
+            AutonomousOperation.RUN_COMMAND,
+            command="git -c foo=bar push origin main",
+        ),
+        AutonomousWorkItem(
+            "task.git_exe_flag_push",
+            AutonomousOperation.RUN_COMMAND,
+            command="git.exe -c foo=bar push origin main",
+        ),
+    ]
+
+    for item in denied:
+        decision = policy.authorize(item)
+        assert decision.allowed is False
+        assert decision.reason
+
+
+def test_autonomous_policy_allows_git_push_with_allow_push_true(tmp_path):
+    policy = AutonomousPolicy.default(workspace_path=tmp_path, allow_push=True)
+
+    allowed = [
+        AutonomousWorkItem("task.git_push_allowed", AutonomousOperation.RUN_COMMAND, command="git push origin main"),
+        AutonomousWorkItem(
+            "task.git_flag_push_allowed",
+            AutonomousOperation.RUN_COMMAND,
+            command="git -c foo=bar push origin main",
+        ),
+        AutonomousWorkItem(
+            "task.git_exe_flag_push_allowed",
+            AutonomousOperation.RUN_COMMAND,
+            command="git.exe -c foo=bar push origin main",
+        ),
+    ]
+
+    for item in allowed:
+        decision = policy.authorize(item)
+        assert decision.allowed is True
 
 
 def test_autonomous_work_item_rejects_present_non_string_optional_fields():
