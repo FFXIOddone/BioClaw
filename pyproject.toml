@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bioclaw-bioscaffold"
+version = "0.1.0"
+description = "Sandboxed cell-inspired software runtime simulator."
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.7",
+  "PyYAML>=6.0.1"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
