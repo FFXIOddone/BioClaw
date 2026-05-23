@@ -72,6 +72,45 @@ The default runtime budget is eight hours. Autonomous mode allows local file edi
 - secret reads
 - commands that target paths outside the workspace
 
+### Seeded Autonomous Mode
+
+For seeded workflows, pass a seed request to launch bounded generation cycles and write the summary to `.bioclaw/seeds/<session_id>/seed-session.json`:
+
+```powershell
+python -m bioscaffold run-seed .\seed-request.json --pretty
+```
+
+Minimal OddDB seed request example:
+
+```json
+{
+  "session_id": "seed_odddb_000001",
+  "workspace_path": "C:/Users/jakeb/Projects/OddDB",
+  "organism_id": "organism_odddb_000001",
+  "product_name": "OddDB Autonomous Baseline",
+  "seed_goal": "Prepare OddDB for safe unattended BioClaw runs and verify baseline quality.",
+  "generation_limit": 3,
+  "verification_commands": [
+    "python -m odddb --version",
+    "python -m odddb doctor --json",
+    "python -m unittest discover -v"
+  ]
+}
+```
+
+Seeded runs are bounded by:
+
+- `generation_limit` (stop after the configured number of microtask generations),
+- `max_runtime_seconds` (session runtime limit for each inner autonomous session).
+
+Seeded workflow inherits existing autonomous policy defaults:
+
+- push is denied unless explicitly allowed,
+- deploy/publish/install/destructive/path-escape/secret reads are denied,
+- command/path constraints apply to every inner run.
+
+Checkpoint data under `.bioclaw/` is excluded from product commits so it is not shipped as product changes.
+
 ## Planning Artifacts
 
 - Design spec: `docs/superpowers/specs/2026-05-22-bioscaffold-os-design.md`
