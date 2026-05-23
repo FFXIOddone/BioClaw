@@ -34,6 +34,15 @@ class AutonomousSessionStatus(str, Enum):
     ARCHIVED = "archived"
 
 
+class SeedGenerationStatus(str, Enum):
+    PLANNED = "planned"
+    COMPLETED = "completed"
+    BLOCKED = "blocked"
+    POLICY_DENIED = "policy_denied"
+    TIMEOUT = "timeout"
+    GENERATION_LIMIT_REACHED = "generation_limit_reached"
+
+
 @dataclass(frozen=True)
 class AutonomousWorkItem:
     task_id: str
@@ -107,6 +116,118 @@ class AutonomousSessionRequest:
             allow_local_commits=_optional_bool(payload, "allow_local_commits", True),
             allow_push=_optional_bool(payload, "allow_push", False),
             allow_dirty_start=_optional_bool(payload, "allow_dirty_start", False),
+        )
+
+
+@dataclass(frozen=True)
+class SeedAutonomousRequest:
+    session_id: str
+    workspace_path: Path
+    organism_id: str
+    product_name: str
+    seed_goal: str
+    verification_commands: tuple[str, ...]
+    max_runtime_seconds: int = 28800
+    generation_limit: int = 4
+    allow_local_edits: bool = True
+    allow_local_commits: bool = True
+    allow_push: bool = False
+    allow_dirty_start: bool = False
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "SeedAutonomousRequest":
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be a dictionary")
+
+        return cls(
+            session_id=_required_string(payload, "session_id"),
+            workspace_path=Path(_required_string(payload, "workspace_path")).resolve(),
+            organism_id=_required_string(payload, "organism_id"),
+            product_name=_required_string(payload, "product_name"),
+            seed_goal=_required_string(payload, "seed_goal"),
+            verification_commands=_optional_string_sequence(payload, "verification_commands"),
+            max_runtime_seconds=int(payload.get("max_runtime_seconds", 28800)),
+            generation_limit=int(payload.get("generation_limit", 4)),
+            allow_local_edits=_optional_bool(payload, "allow_local_edits", True),
+            allow_local_commits=_optional_bool(payload, "allow_local_commits", True),
+            allow_push=_optional_bool(payload, "allow_push", False),
+            allow_dirty_start=_optional_bool(payload, "allow_dirty_start", False),
+        )
+
+
+@dataclass(frozen=True)
+class SeedGenerationPlan:
+    generation_index: int
+    project_tasks: tuple[AutonomousWorkItem, ...]
+    verification_commands: tuple[str, ...]
+    is_terminal: bool = False
+
+
+@dataclass(frozen=True)
+class SeedGenerationRecord:
+    generation_index: int
+    project_tasks: tuple[AutonomousWorkItem, ...]
+    verification_commands: tuple[str, ...]
+    status: SeedGenerationStatus = SeedGenerationStatus.PLANNED
+    terminal: bool = False
+
+
+@dataclass(frozen=True)
+class SeedAutonomousRecord:
+    session_id: str
+    workspace_path: str
+    organism_id: str
+    product_name: str
+    seed_goal: str
+    status: SeedGenerationStatus
+    generation_limit: int
+    max_runtime_seconds: int
+    generations: tuple[SeedGenerationRecord, ...] = ()
+
+
+class SeedMicrotaskPlanner:
+    def plan_generation(self, request: SeedAutonomousRequest, generation_index: int) -> SeedGenerationPlan:
+        workspace_path = request.workspace_path.resolve()
+        baseline_command = _seed_baseline_command(workspace_path / "tests")
+        _ = _repo_has_local_fact(workspace_path / "README.md")
+        _ = _repo_has_local_fact(workspace_path / "pyproject.toml")
+
+        existing_gitignore = workspace_path / ".gitignore"
+        if _is_gitignore_ignoring_bioclaw(existing_gitignore):
+            return SeedGenerationPlan(
+                generation_index=generation_index,
+                project_tasks=(),
+                verification_commands=(),
+                is_terminal=True,
+            )
+
+        if existing_gitignore.exists():
+            current_gitignore = existing_gitignore.read_text(encoding="utf-8")
+            rewritten_gitignore = _append_bioclaw_to_gitignore(current_gitignore)
+        else:
+            rewritten_gitignore = ".bioclaw/\n"
+
+        tasks = (
+            AutonomousWorkItem(
+                task_id=f"seed_generation_{generation_index:06d}.gitignore",
+                operation=AutonomousOperation.WRITE_FILE,
+                path=".gitignore",
+                content=rewritten_gitignore,
+            ),
+            AutonomousWorkItem(
+                task_id=f"seed_generation_{generation_index:06d}.baseline",
+                operation=AutonomousOperation.RUN_COMMAND,
+                command=baseline_command,
+            ),
+        )
+
+        verification_commands = request.verification_commands or (baseline_command,)
+
+        return SeedGenerationPlan(
+            generation_index=generation_index,
+            project_tasks=tasks,
+            verification_commands=verification_commands,
+            is_terminal=False,
         )
 
 
@@ -707,3 +828,26 @@ def _is_in_workspace(candidate: Path, workspace_path: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _repo_has_local_fact(path: Path) -> bool:
+    return path.exists()
+
+
+def _seed_baseline_command(tests_path: Path) -> str:
+    if tests_path.is_dir():
+        return "python -m pytest -q"
+    return 'python -c "print(\'no tests discovered\')"'
+
+
+def _is_gitignore_ignoring_bioclaw(path: Path) -> bool:
+    if not path.exists():
+        return False
+    current = path.read_text(encoding="utf-8")
+    return any(line.strip() == ".bioclaw/" for line in current.splitlines())
+
+
+def _append_bioclaw_to_gitignore(content: str) -> str:
+    if not content.endswith("\n"):
+        return content + "\n.bioclaw/\n"
+    return content + ".bioclaw/\n"
