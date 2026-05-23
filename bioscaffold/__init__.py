@@ -11,8 +11,17 @@ from bioscaffold.molecules import MolecularStructure, MoleculeRegistry, Molecule
 from bioscaffold.organism import OrganismStatus, ProductOrganism
 from bioscaffold.turns import Turn, TurnEngine, TurnProposal
 from bioscaffold.types import CellRole, LifecyclePhase
+from bioscaffold.workflow import (
+    ActiveOrganismRegistry,
+    ProductWorkflowPlan,
+    ProductWorkflowResult,
+    ProductWorkflowRunner,
+    WorkflowGenePlan,
+    WorkflowTerminalState,
+)
 
 __all__ = [
+    "ActiveOrganismRegistry",
     "AgentHat",
     "BioCell",
     "BioScale",
@@ -30,8 +39,13 @@ __all__ = [
     "MoleculeType",
     "OrganismStatus",
     "ProductOrganism",
+    "ProductWorkflowPlan",
+    "ProductWorkflowResult",
+    "ProductWorkflowRunner",
     "TaskState",
     "Turn",
     "TurnEngine",
     "TurnProposal",
+    "WorkflowGenePlan",
+    "WorkflowTerminalState",
 ]

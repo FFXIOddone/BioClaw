@@ -55,6 +55,9 @@ class ProductOrganism:
             quarantined_structures=quarantined,
         )
 
+    def block(self) -> "ProductOrganism":
+        return replace(self, status=OrganismStatus.BLOCKED)
+
     def deliver(self) -> "ProductOrganism":
         if self.status is OrganismStatus.QUARANTINED:
             raise ValueError("quarantined organism cannot be delivered")

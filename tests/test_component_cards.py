@@ -14,6 +14,7 @@ def test_package_imports():
     import bioscaffold
 
     assert bioscaffold.__all__ == [
+        "ActiveOrganismRegistry",
         "AgentHat",
         "BioCell",
         "BioScale",
@@ -31,10 +32,15 @@ def test_package_imports():
         "MoleculeType",
         "OrganismStatus",
         "ProductOrganism",
+        "ProductWorkflowPlan",
+        "ProductWorkflowResult",
+        "ProductWorkflowRunner",
         "TaskState",
         "Turn",
         "TurnEngine",
         "TurnProposal",
+        "WorkflowGenePlan",
+        "WorkflowTerminalState",
     ]
 
 
