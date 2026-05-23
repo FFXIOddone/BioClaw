@@ -1,8 +1,10 @@
+from bioscaffold.cytoskeleton import Cytoskeleton
 from bioscaffold.genome import Genome
 from bioscaffold.membrane import Membrane
 from bioscaffold.mitochondria import Mitochondria
 from bioscaffold.nucleus import Nucleus
-from bioscaffold.types import BudgetRequest, CellRole
+from bioscaffold.ribosome import Ribosome
+from bioscaffold.types import BudgetRequest, CellRole, Job
 
 
 def test_genome_validates_and_snapshots_config():
@@ -79,3 +81,32 @@ def test_mitochondria_reports_remaining_budget_after_reservation():
     assert reservation.accepted is True
     assert report.runtime_seconds_remaining == 8
     assert report.memory_mb_remaining == 120
+
+
+def test_ribosome_executes_allowed_fake_job():
+    ribosome = Ribosome(allowed_job_types={"echo"})
+
+    result = ribosome.execute(Job(job_id="job_000001", payload={"type": "echo", "value": "ok"}))
+
+    assert result.succeeded is True
+    assert result.output == {"result": "ok"}
+
+
+def test_ribosome_rejects_unknown_job_type():
+    ribosome = Ribosome(allowed_job_types={"echo"})
+
+    result = ribosome.execute(Job(job_id="job_000001", payload={"type": "shell", "value": "no"}))
+
+    assert result.succeeded is False
+    assert result.reason == "job type shell is not allowed"
+
+
+def test_cytoskeleton_rejects_duplicate_route():
+    graph = Cytoskeleton()
+
+    first = graph.register_route("ribosome", "lysosome")
+    second = graph.register_route("ribosome", "lysosome")
+
+    assert first.allowed is True
+    assert second.allowed is False
+    assert second.reason == "route ribosome->lysosome already exists"
