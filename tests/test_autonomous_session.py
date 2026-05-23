@@ -19,6 +19,7 @@ from bioscaffold.autonomy import (
     SeedGenerationPlan,
     SeedGenerationStatus,
     SeedGenerationRecord,
+    SeedAutonomousController,
     SeedAutonomousRecord,
     SeedMicrotaskPlanner,
 )
@@ -275,6 +276,136 @@ def test_seed_plan_record_payload_is_json_friendly_with_serialized_enums(tmp_pat
     assert record_payload["project_tasks"][0]["operation"] == "write_file"
     assert seed_payload["status"] == SeedGenerationStatus.POLICY_DENIED.value
     assert seed_payload["generations"][0]["status"] == SeedGenerationStatus.BLOCKED.value
+
+
+def test_seed_autonomous_controller_writes_seed_summary_and_stops_on_terminal_plan(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "generation_limit": 4,
+        }
+    )
+
+    record = SeedAutonomousController().run(request)
+
+    assert record.status is SeedGenerationStatus.COMPLETED
+    assert record.generations
+    assert len(record.generations) >= 2
+    assert record.generations[0].status is SeedGenerationStatus.COMPLETED
+    assert record.generations[0].inner_checkpoint_path
+    assert record.generations[1].status is SeedGenerationStatus.COMPLETED
+    assert record.generations[1].terminal
+
+    summary_path = workspace / ".bioclaw" / "seeds" / request.session_id / "seed-session.json"
+    assert summary_path.exists()
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert payload["status"] == SeedGenerationStatus.COMPLETED.value
+    assert payload["generations"][0]["inner_checkpoint_path"] == record.generations[0].inner_checkpoint_path
+
+
+def test_seed_autonomous_controller_limits_out_when_no_generation_capacity(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "generation_limit": 0,
+        }
+    )
+
+    record = SeedAutonomousController().run(request)
+
+    assert record.status is SeedGenerationStatus.GENERATION_LIMIT_REACHED
+    assert record.generations == ()
+
+    summary_path = workspace / ".bioclaw" / "seeds" / request.session_id / "seed-session.json"
+    assert summary_path.exists()
+    assert json.loads(summary_path.read_text(encoding="utf-8"))["status"] == SeedGenerationStatus.GENERATION_LIMIT_REACHED.value
+
+
+def test_seed_autonomous_controller_propagates_inner_blocked_status(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": [
+                "python -c \"import sys; sys.exit(1)\"",
+            ],
+        }
+    )
+
+    record = SeedAutonomousController().run(request)
+
+    assert record.status is SeedGenerationStatus.BLOCKED
+    assert len(record.generations) == 1
+    assert record.generations[0].status is SeedGenerationStatus.BLOCKED
+    assert record.generations[0].inner_status == AutonomousSessionStatus.BLOCKED.value
+
+
+def test_seed_autonomous_controller_propagates_inner_policy_denied_status(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": [
+                "git push origin main",
+            ],
+        }
+    )
+
+    record = SeedAutonomousController().run(request)
+
+    assert record.status is SeedGenerationStatus.POLICY_DENIED
+    assert len(record.generations) == 1
+    assert record.generations[0].status is SeedGenerationStatus.POLICY_DENIED
+    assert record.generations[0].inner_status == AutonomousSessionStatus.POLICY_DENIED.value
+
+
+def test_seed_autonomous_controller_propagates_inner_timeout_status(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "max_runtime_seconds": 0,
+        }
+    )
+
+    record = SeedAutonomousController().run(request)
+
+    assert record.status is SeedGenerationStatus.TIMEOUT
+    assert len(record.generations) == 1
+    assert record.generations[0].status is SeedGenerationStatus.TIMEOUT
+    assert record.generations[0].inner_status == AutonomousSessionStatus.TIMEOUT.value
 
 
 def test_autonomous_policy_denies_push_deploy_install_and_destructive_commands(tmp_path):

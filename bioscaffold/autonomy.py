@@ -188,6 +188,9 @@ class SeedGenerationRecord:
     verification_commands: tuple[str, ...]
     status: SeedGenerationStatus = SeedGenerationStatus.PLANNED
     terminal: bool = False
+    reason: str = ""
+    inner_checkpoint_path: str = ""
+    inner_status: str = ""
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -196,7 +199,140 @@ class SeedGenerationRecord:
             "verification_commands": list(self.verification_commands),
             "status": self.status.value,
             "terminal": self.terminal,
+            "reason": self.reason,
+            "inner_checkpoint_path": self.inner_checkpoint_path,
+            "inner_status": self.inner_status,
         }
+
+
+class SeedAutonomousController:
+    def __init__(
+        self,
+        *,
+        planner: SeedMicrotaskPlanner | None = None,
+        session_controller: AutonomousSessionController | None = None,
+    ) -> None:
+        self.planner = planner or SeedMicrotaskPlanner()
+        self.session_controller = session_controller or AutonomousSessionController()
+
+    def run(self, request: SeedAutonomousRequest) -> SeedAutonomousRecord:
+        workspace_path = request.workspace_path.resolve()
+        seed_session_dir = (workspace_path / ".bioclaw" / "seeds" / request.session_id).resolve()
+        generations: list[SeedGenerationRecord] = []
+
+        status = SeedGenerationStatus.GENERATION_LIMIT_REACHED if request.generation_limit <= 0 else SeedGenerationStatus.COMPLETED
+
+        for generation_index in range(1, request.generation_limit + 1):
+            plan = self.planner.plan_generation(request, generation_index=generation_index)
+
+            if plan.is_terminal or not plan.project_tasks:
+                generation = SeedGenerationRecord(
+                    generation_index=plan.generation_index,
+                    project_tasks=plan.project_tasks,
+                    verification_commands=plan.verification_commands,
+                    status=SeedGenerationStatus.COMPLETED,
+                    terminal=True,
+                    reason="No remaining work to plan.",
+                )
+                generations.append(generation)
+                status = SeedGenerationStatus.COMPLETED
+                break
+
+            inner_request_payload = {
+                "session_id": f"{request.session_id}_g{generation_index:06d}",
+                "workspace_path": str(workspace_path),
+                "organism_id": request.organism_id,
+                "product_name": request.product_name,
+                "requirements": [
+                    {
+                        "requirement_id": "seed_goal",
+                        "text": request.seed_goal,
+                        "artifact_type": "code",
+                    },
+                ],
+                "project_tasks": [task.to_payload() for task in plan.project_tasks],
+                "verification_commands": list(plan.verification_commands),
+                "max_runtime_seconds": request.max_runtime_seconds,
+                "allow_local_edits": request.allow_local_edits,
+                "allow_local_commits": request.allow_local_commits,
+                "allow_push": request.allow_push,
+                "allow_dirty_start": request.allow_dirty_start,
+            }
+
+            inner_record = self.session_controller.run(
+                AutonomousSessionRequest.from_payload(inner_request_payload)
+            )
+            inner_checkpoint_path = inner_record.checkpoint_dir
+            inner_status = inner_record.status
+            if inner_status is AutonomousSessionStatus.COMPLETED:
+                generation = SeedGenerationRecord(
+                    generation_index=plan.generation_index,
+                    project_tasks=plan.project_tasks,
+                    verification_commands=plan.verification_commands,
+                    status=SeedGenerationStatus.COMPLETED,
+                    terminal=False,
+                    reason="inner session completed.",
+                    inner_checkpoint_path=inner_checkpoint_path,
+                    inner_status=inner_status.value,
+                )
+                generations.append(generation)
+                continue
+
+            mapped_status = self._map_inner_status(inner_status)
+            generation = SeedGenerationRecord(
+                generation_index=plan.generation_index,
+                project_tasks=plan.project_tasks,
+                verification_commands=plan.verification_commands,
+                status=mapped_status,
+                terminal=True,
+                reason=f"inner session ended with {inner_status.value}.",
+                inner_checkpoint_path=inner_checkpoint_path,
+                inner_status=inner_status.value,
+            )
+            generations.append(generation)
+            status = mapped_status
+            break
+
+        else:
+            if generations:
+                status = SeedGenerationStatus.GENERATION_LIMIT_REACHED
+
+        seed_session_dir.mkdir(parents=True, exist_ok=True)
+        payload = SeedAutonomousRecord(
+            session_id=request.session_id,
+            workspace_path=str(workspace_path),
+            organism_id=request.organism_id,
+            product_name=request.product_name,
+            seed_goal=request.seed_goal,
+            status=status,
+            generation_limit=request.generation_limit,
+            max_runtime_seconds=request.max_runtime_seconds,
+            generations=tuple(generations),
+        ).to_payload()
+        (seed_session_dir / "seed-session.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return SeedAutonomousRecord(
+            session_id=request.session_id,
+            workspace_path=str(workspace_path),
+            organism_id=request.organism_id,
+            product_name=request.product_name,
+            seed_goal=request.seed_goal,
+            status=status,
+            generation_limit=request.generation_limit,
+            max_runtime_seconds=request.max_runtime_seconds,
+            generations=tuple(generations),
+        )
+
+    @staticmethod
+    def _map_inner_status(inner_status: AutonomousSessionStatus) -> SeedGenerationStatus:
+        if inner_status is AutonomousSessionStatus.BLOCKED:
+            return SeedGenerationStatus.BLOCKED
+        if inner_status is AutonomousSessionStatus.POLICY_DENIED:
+            return SeedGenerationStatus.POLICY_DENIED
+        if inner_status is AutonomousSessionStatus.TIMEOUT:
+            return SeedGenerationStatus.TIMEOUT
+        if inner_status is AutonomousSessionStatus.FAILED:
+            return SeedGenerationStatus.BLOCKED
+        return SeedGenerationStatus.BLOCKED
 
 
 @dataclass(frozen=True)
