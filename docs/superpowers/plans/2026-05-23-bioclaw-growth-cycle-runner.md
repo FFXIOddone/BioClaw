@@ -548,21 +548,21 @@ git commit -m "Add growth cycle runner"
 - Modify: `tests/test_component_cards.py`
 - Modify: `bioscaffold/__init__.py`
 
-- [ ] **Step 1: Write failing public export expectation**
+- [x] **Step 1: Write failing public export expectation**
 
 Add `"GrowthCycleResult"` and `"GrowthCycleRunner"` to the `bioscaffold.__all__` expectation in `tests/test_component_cards.py`.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `python -m pytest tests/test_component_cards.py::test_package_imports -v`
 
 Expected: FAIL because growth-cycle exports are not present.
 
-- [ ] **Step 3: Update public exports**
+- [x] **Step 3: Update public exports**
 
 Import and export `GrowthCycleResult` and `GrowthCycleRunner` in `bioscaffold/__init__.py`.
 
-- [ ] **Step 4: Run full verification**
+- [x] **Step 4: Run full verification**
 
 Run: `python -m pytest -v`
 
@@ -572,7 +572,7 @@ Run: `git diff --check`
 
 Expected: no output and exit code 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add bioscaffold/__init__.py tests/test_component_cards.py

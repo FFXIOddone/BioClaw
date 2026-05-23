@@ -21,6 +21,8 @@ def test_package_imports():
         "ExpressionEngine",
         "Generation",
         "GenerationEngine",
+        "GrowthCycleResult",
+        "GrowthCycleRunner",
         "LifecyclePhase",
         "MicroOperation",
         "MicroTask",
