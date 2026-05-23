@@ -7,6 +7,10 @@ import sys
 from typing import Any, Sequence
 
 from bioscaffold.all_generation import AllGenerationProductRunner, ProductBuildRequest
+from bioscaffold.autonomy import (
+    AutonomousSessionController,
+    AutonomousSessionRequest,
+)
 from bioscaffold.compiler import ProductRequirement
 from bioscaffold.immune import PathogenFixture
 
@@ -16,6 +20,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "run-product":
         return _run_product(args)
+    if args.command == "run-session":
+        return _run_session(args)
+    if args.command == "resume-session":
+        return _resume_session(args)
+    if args.command == "session-status":
+        return _session_status(args)
     parser.print_help(sys.stderr)
     return 2
 
@@ -45,6 +55,48 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Pretty-print JSON output with two-space indentation.",
     )
+    run_session = subparsers.add_parser(
+        "run-session",
+        help="Run a local-only autonomous project session.",
+    )
+    run_session.add_argument(
+        "request",
+        type=Path,
+        help="Path to an autonomous session request JSON file.",
+    )
+    run_session.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty-print JSON output with two-space indentation.",
+    )
+    resume_session = subparsers.add_parser(
+        "resume-session",
+        help="Resume by reading an autonomous session checkpoint.",
+    )
+    resume_session.add_argument(
+        "session",
+        type=Path,
+        help="Path to a saved session JSON checkpoint.",
+    )
+    resume_session.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty-print JSON output with two-space indentation.",
+    )
+    session_status = subparsers.add_parser(
+        "session-status",
+        help="Print autonomous session checkpoint status JSON.",
+    )
+    session_status.add_argument(
+        "session",
+        type=Path,
+        help="Path to a saved session JSON checkpoint.",
+    )
+    session_status.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty-print JSON output with two-space indentation.",
+    )
     return parser
 
 
@@ -57,11 +109,7 @@ def _run_product(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
-    report_json = json.dumps(
-        payload,
-        indent=2 if args.pretty else None,
-        sort_keys=True,
-    )
+    report_json = _as_json(payload, pretty=args.pretty)
     if args.output is None:
         print(report_json)
         return 0
@@ -69,6 +117,40 @@ def _run_product(args: argparse.Namespace) -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(f"{report_json}\n", encoding="utf-8")
     return 0
+
+
+def _print_json(payload: dict[str, Any], *, pretty: bool) -> None:
+    print(_as_json(payload, pretty=pretty))
+
+
+def _as_json(payload: dict[str, Any], *, pretty: bool) -> str:
+    return json.dumps(payload, indent=2 if pretty else None, sort_keys=True)
+
+
+def _run_session(args: argparse.Namespace) -> int:
+    try:
+        payload = json.loads(args.request.read_text(encoding="utf-8-sig"))
+        request = AutonomousSessionRequest.from_payload(payload)
+        record = AutonomousSessionController().run(request)
+    except (OSError, ValueError, json.JSONDecodeError, TypeError, KeyError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    _print_json(record.to_payload(), pretty=args.pretty)
+    return 0
+
+
+def _resume_session(args: argparse.Namespace) -> int:
+    try:
+        record = AutonomousSessionController().resume(args.session)
+    except (OSError, ValueError, json.JSONDecodeError, KeyError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    _print_json(record.to_payload(), pretty=args.pretty)
+    return 0
+
+
+def _session_status(args: argparse.Namespace) -> int:
+    return _resume_session(args)
 
 
 def _load_request(path: Path) -> ProductBuildRequest:
