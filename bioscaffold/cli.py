@@ -127,12 +127,19 @@ def _as_json(payload: dict[str, Any], *, pretty: bool) -> str:
     return json.dumps(payload, indent=2 if pretty else None, sort_keys=True)
 
 
+def _read_json_object(path: Path, *, context: str) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{context} must be a JSON object")
+    return payload
+
+
 def _run_session(args: argparse.Namespace) -> int:
     try:
-        payload = json.loads(args.request.read_text(encoding="utf-8-sig"))
+        payload = _read_json_object(args.request, context="request")
         request = AutonomousSessionRequest.from_payload(payload)
         record = AutonomousSessionController().run(request)
-    except (OSError, ValueError, json.JSONDecodeError, TypeError, KeyError) as exc:
+    except (AttributeError, KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     _print_json(record.to_payload(), pretty=args.pretty)
@@ -141,8 +148,9 @@ def _run_session(args: argparse.Namespace) -> int:
 
 def _resume_session(args: argparse.Namespace) -> int:
     try:
+        _read_json_object(args.session, context="session data")
         record = AutonomousSessionController().resume(args.session)
-    except (OSError, ValueError, json.JSONDecodeError, KeyError) as exc:
+    except (AttributeError, KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     _print_json(record.to_payload(), pretty=args.pretty)
