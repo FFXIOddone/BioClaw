@@ -28,17 +28,17 @@
 - Modify: `tests/test_component_cards.py`
 - Create: `bio_components/processes/growth-cycle.yaml`
 
-- [ ] **Step 1: Write failing card expectation**
+- [x] **Step 1: Write failing card expectation**
 
 Add `"growth-cycle"` to the expected card-name set in `tests/test_component_cards.py`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_component_cards.py::test_all_repository_cards_are_valid -v`
 
 Expected: FAIL because `growth-cycle` is missing.
 
-- [ ] **Step 3: Add card**
+- [x] **Step 3: Add card**
 
 Create `bio_components/processes/growth-cycle.yaml`:
 
@@ -68,13 +68,13 @@ bio_component:
   human_review_required: true
 ```
 
-- [ ] **Step 4: Run card tests**
+- [x] **Step 4: Run card tests**
 
 Run: `python -m pytest tests/test_component_cards.py tests/test_card_registry.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_component_cards.py bio_components/processes/growth-cycle.yaml

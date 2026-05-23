@@ -85,6 +85,7 @@ def test_all_repository_cards_are_valid():
         "endoplasmic-reticulum",
         "gene",
         "golgi-apparatus",
+        "growth-cycle",
         "immune-response",
         "lysosome",
         "meiosis",
