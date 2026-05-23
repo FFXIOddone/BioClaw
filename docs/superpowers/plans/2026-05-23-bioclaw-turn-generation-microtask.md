@@ -915,7 +915,7 @@ git commit -m "Add molecule registry"
 - Modify: `tests/test_molecules_immune.py`
 - Create: `bioscaffold/immune.py`
 
-- [ ] **Step 1: Add failing immune tests**
+- [x] **Step 1: Add failing immune tests**
 
 Append to `tests/test_molecules_immune.py`:
 
@@ -976,13 +976,13 @@ def test_white_blood_cell_quarantines_known_marker():
     assert registry.get("antibody.fake_completion_marker").molecule_type is MoleculeType.ANTIBODY
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_molecules_immune.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.immune'`.
 
-- [ ] **Step 3: Implement immune fixtures**
+- [x] **Step 3: Implement immune fixtures**
 
 Create `bioscaffold/immune.py`:
 
@@ -1124,13 +1124,13 @@ class ImmuneSystem:
         return task, event
 ```
 
-- [ ] **Step 4: Run immune tests**
+- [x] **Step 4: Run immune tests**
 
 Run: `python -m pytest tests/test_molecules_immune.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_molecules_immune.py bioscaffold/immune.py
