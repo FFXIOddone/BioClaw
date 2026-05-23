@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+import re
 from typing import Any
 
 from bioscaffold.compiler import ProductRequirement
@@ -44,10 +45,10 @@ class AutonomousWorkItem:
         return cls(
             task_id=_required_string(payload, "task_id", "project_tasks[]"),
             operation=AutonomousOperation(_required_string(payload, "operation", "project_tasks[]")),
-            path=str(payload.get("path", "")),
-            content=str(payload.get("content", "")),
-            command=str(payload.get("command", "")),
-            expected_output=str(payload.get("expected_output", "")),
+            path=_optional_string(payload, "path", "project_tasks[]"),
+            content=_optional_string(payload, "content", "project_tasks[]"),
+            command=_optional_string(payload, "command", "project_tasks[]"),
+            expected_output=_optional_string(payload, "expected_output", "project_tasks[]"),
         )
 
 
@@ -95,14 +96,14 @@ class AutonomousSessionRequest:
             product_name=_required_string(payload, "product_name"),
             requirements=requirements,
             project_tasks=project_tasks,
-            verification_commands=tuple(str(command) for command in payload.get("verification_commands", ())),
+            verification_commands=_optional_string_sequence(payload, "verification_commands"),
             max_runtime_seconds=int(payload.get("max_runtime_seconds", 28800)),
             generation_limit=int(payload.get("generation_limit", 24)),
             turn_limit=int(payload.get("turn_limit", 96)),
-            allow_local_edits=bool(payload.get("allow_local_edits", True)),
-            allow_local_commits=bool(payload.get("allow_local_commits", True)),
-            allow_push=bool(payload.get("allow_push", False)),
-            allow_dirty_start=bool(payload.get("allow_dirty_start", False)),
+            allow_local_edits=_optional_bool(payload, "allow_local_edits", True),
+            allow_local_commits=_optional_bool(payload, "allow_local_commits", True),
+            allow_push=_optional_bool(payload, "allow_push", False),
+            allow_dirty_start=_optional_bool(payload, "allow_dirty_start", False),
         )
 
 
@@ -177,6 +178,8 @@ class AutonomousSessionRecord:
 class AutonomousPolicy:
     def __init__(self, *, workspace_path: Path, allow_push: bool = False) -> None:
         self.workspace_path = workspace_path.resolve()
+        if not isinstance(allow_push, bool):
+            raise ValueError("allow_push must be a boolean")
         self.allow_push = allow_push
 
     @classmethod
@@ -184,10 +187,16 @@ class AutonomousPolicy:
         return cls(workspace_path=workspace_path, allow_push=allow_push)
 
     def authorize(self, item: AutonomousWorkItem) -> PolicyDecision:
-        if item.operation is AutonomousOperation.WRITE_FILE:
+        if item.operation in (
+            AutonomousOperation.INSPECT_FILE,
+            AutonomousOperation.WRITE_FILE,
+            AutonomousOperation.RECORD,
+        ):
             return self._authorize_path(item.path)
         if item.operation is AutonomousOperation.RUN_COMMAND:
             return self._authorize_command(item.command)
+        if item.operation is AutonomousOperation.GIT_COMMIT:
+            return PolicyDecision.deny("git commit is denied until commit gate authorization")
         return PolicyDecision.allow("operation allowed")
 
     def _authorize_path(self, relative_path: str) -> PolicyDecision:
@@ -201,23 +210,13 @@ class AutonomousPolicy:
         return PolicyDecision.allow("path is inside workspace")
 
     def _authorize_command(self, command: str) -> PolicyDecision:
-        normalized = f" {command.lower()} "
         if not command.strip():
             return PolicyDecision.deny("command is required")
-        if _contains_command_phrase(normalized, "git push") and not self.allow_push:
+        tokens = _command_tokens(command)
+        if _is_git_push(tokens) and not self.allow_push:
             return PolicyDecision.deny("push is denied by default")
-        if any(
-            _contains_command_phrase(normalized, phrase)
-            for phrase in (
-                "deploy",
-                "publish",
-                "install",
-                "remove-item",
-                "rm",
-                "rmdir",
-                "del",
-            )
-        ):
+        denied_commands = {"deploy", "publish", "install", "remove-item", "rm", "rmdir", "del", "erase", "rd"}
+        if any(token in denied_commands for token in tokens):
             return PolicyDecision.deny("command class is denied by default")
         return PolicyDecision.allow("command allowed")
 
@@ -226,6 +225,35 @@ def _required_string(payload: dict[str, Any], key: str, context: str = "request"
     value = payload.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{context}.{key} must be a non-empty string")
+    return value
+
+
+def _optional_string(payload: dict[str, Any], key: str, context: str) -> str:
+    if key not in payload:
+        return ""
+    value = payload[key]
+    if not isinstance(value, str):
+        raise ValueError(f"{context}.{key} must be a string")
+    return value
+
+
+def _optional_string_sequence(payload: dict[str, Any], key: str) -> tuple[str, ...]:
+    if key not in payload:
+        return ()
+    value = payload[key]
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{key} must be a list or tuple of strings")
+    if any(not isinstance(item, str) for item in value):
+        raise ValueError(f"{key} must contain only strings")
+    return tuple(value)
+
+
+def _optional_bool(payload: dict[str, Any], key: str, default: bool) -> bool:
+    if key not in payload:
+        return default
+    value = payload[key]
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} must be a boolean")
     return value
 
 
@@ -238,5 +266,10 @@ def _required_list(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
     return value
 
 
-def _contains_command_phrase(normalized_command: str, phrase: str) -> bool:
-    return f" {phrase} " in normalized_command
+def _command_tokens(command: str) -> tuple[str, ...]:
+    normalized = re.sub(r"\s+", " ", command.strip().lower())
+    return tuple(token for token in re.split(r"[;&| ]+", normalized) if token)
+
+
+def _is_git_push(tokens: tuple[str, ...]) -> bool:
+    return len(tokens) >= 2 and tokens[0] in {"git", "git.exe"} and tokens[1] == "push"
