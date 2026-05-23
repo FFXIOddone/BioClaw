@@ -28,6 +28,7 @@ from bioscaffold.autonomy import (
     CommandRecord,
     LocalAutonomousExecutor,
     SessionCheckpointStore,
+    default_biological_fleet,
 )
 from bioscaffold.expression import ExpressionEngine
 from bioscaffold.generations import Generation, GenerationEngine
@@ -72,6 +73,7 @@ __all__ = [
     "CommandRecord",
     "LocalAutonomousExecutor",
     "SessionCheckpointStore",
+    "default_biological_fleet",
     "AllGenerationProductRunner",
     "AllGenerationWorkflowResult",
     "ArtifactValidationEngine",

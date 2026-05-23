@@ -36,6 +36,7 @@ def test_package_imports():
         "CommandRecord",
         "LocalAutonomousExecutor",
         "SessionCheckpointStore",
+        "default_biological_fleet",
         "AllGenerationProductRunner",
         "AllGenerationWorkflowResult",
         "ArtifactValidationEngine",

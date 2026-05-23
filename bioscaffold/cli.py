@@ -12,6 +12,7 @@ from bioscaffold.autonomy import (
     AutonomousSessionRequest,
     SeedAutonomousController,
     SeedAutonomousRequest,
+    default_biological_fleet,
 )
 from bioscaffold.compiler import ProductRequirement
 from bioscaffold.immune import PathogenFixture
@@ -26,6 +27,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_session(args)
     if args.command == "run-seed":
         return _run_seed(args)
+    if args.command == "fleet-manifest":
+        return _fleet_manifest(args)
     if args.command == "resume-session":
         return _resume_session(args)
     if args.command == "session-status":
@@ -83,6 +86,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to a seeded autonomous request JSON file.",
     )
     run_seed.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty-print JSON output with two-space indentation.",
+    )
+    fleet_manifest = subparsers.add_parser(
+        "fleet-manifest",
+        help="Print the default biological fleet manifest JSON.",
+    )
+    fleet_manifest.add_argument(
         "--pretty",
         action="store_true",
         help="Pretty-print JSON output with two-space indentation.",
@@ -173,6 +185,19 @@ def _run_seed(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 2
     _print_json(record.to_payload(), pretty=args.pretty)
+    return 0
+
+
+def _fleet_manifest(args: argparse.Namespace) -> int:
+    fleet = default_biological_fleet()
+    _print_json(
+        {
+            "enable_structure_fleet": True,
+            "fleet_count": len(fleet),
+            "structure_fleet": [unit.to_payload() for unit in fleet],
+        },
+        pretty=args.pretty,
+    )
     return 0
 
 

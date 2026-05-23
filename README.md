@@ -131,6 +131,14 @@ With these fields, repeated `run-seed` invocations append to `.bioclaw/seeds/<se
 
 Each seeded generation now records a whole-system biological fleet by default. The default fleet includes DNA, RNA, protein, membrane, mitochondria, bacteria, white blood cell, tissue, organ, organism, and generation-reviewer structures. Every structure records one tiny biological action mapped to a mechanical project function in `generations[].fleet_actions`; the runnable project work remains bounded and policy-checked through the existing autonomous session executor.
 
+OpenClaw fleet-turn orchestration reads that same default manifest through:
+
+```powershell
+python -m bioscaffold fleet-manifest --pretty
+```
+
+The manifest command is the source of truth for scheduler integrations. OpenClaw uses it to create one command file per biological structure plus one fleet-turn orchestrator command file. Each OpenClaw cron turn runs that orchestrator once with a foreground `exec`; the orchestrator records every structure-level action, then runs one final command for the safe BioClaw generation. That keeps the local tokenless OpenClaw agent on one reliable tool call per turn while still producing a visible per-structure fleet ledger.
+
 Seeded workflow inherits existing autonomous policy defaults:
 
 - push is denied unless explicitly allowed,

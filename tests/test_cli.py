@@ -342,6 +342,29 @@ def test_run_seed_command_rejects_invalid_json(tmp_path, capsys):
     assert "Expecting" in stderr
 
 
+def test_fleet_manifest_command_outputs_default_structure_fleet(capsys):
+    exit_code = main(["fleet-manifest", "--pretty"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["enable_structure_fleet"] is True
+    assert payload["fleet_count"] >= 11
+    assert len(payload["structure_fleet"]) == payload["fleet_count"]
+    assert {unit["structure_type"] for unit in payload["structure_fleet"]} >= {
+        "dna",
+        "rna",
+        "protein",
+        "membrane",
+        "mitochondria",
+        "bacteria",
+        "white_blood_cell",
+        "tissue",
+        "organ",
+        "organism",
+        "generation_reviewer",
+    }
+
+
 def test_session_status_command_pretty_outputs_multiline_json(tmp_path, capsys):
     workspace = tmp_path / "project"
     workspace.mkdir()
