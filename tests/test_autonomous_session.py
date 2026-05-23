@@ -225,6 +225,103 @@ def test_checkpoint_store_resumes_session_record(tmp_path):
     assert resumed.commit_refs == ("abc1234",)
 
 
+def test_checkpoint_store_rejects_unsafe_session_ids(tmp_path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+
+    for session_id in ("../escape", "nested/session", str(tmp_path / "absolute")):
+        with pytest.raises(ValueError, match="session_id"):
+            SessionCheckpointStore(workspace, session_id)
+
+
+def test_checkpoint_store_rejects_mismatched_record_identity_and_negative_generation(tmp_path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    store = SessionCheckpointStore(workspace, "session_000001")
+
+    invalid_records = [
+        _session_record(workspace, store, session_id="session_000002"),
+        _session_record(tmp_path / "other", store),
+        _session_record(workspace, store, generation_index=-1),
+    ]
+
+    for record in invalid_records:
+        with pytest.raises(ValueError):
+            store.write_checkpoint(record)
+
+
+def test_checkpoint_store_rewrites_complete_logs_from_record_history(tmp_path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    store = SessionCheckpointStore(workspace, "session_000001")
+    first_task = AutonomousTaskRecord(
+        task_id="task.inspect",
+        operation=AutonomousOperation.INSPECT_FILE,
+        state="completed",
+        reason="read README.md",
+        path="README.md",
+    )
+    second_task = AutonomousTaskRecord(
+        task_id="task.write",
+        operation=AutonomousOperation.WRITE_FILE,
+        state="completed",
+        reason="wrote README.md",
+        path="README.md",
+    )
+    first_command = CommandRecord(command="python -m pytest first", exit_code=0, stdout="1 passed", stderr="")
+    second_command = CommandRecord(command="python -m pytest second", exit_code=0, stdout="2 passed", stderr="")
+
+    store.write_checkpoint(
+        _session_record(
+            workspace,
+            store,
+            generation_index=1,
+            task_records=(first_task,),
+            command_records=(first_command,),
+        )
+    )
+    store.write_checkpoint(
+        _session_record(
+            workspace,
+            store,
+            generation_index=2,
+            task_records=(first_task, second_task),
+            command_records=(first_command, second_command),
+        )
+    )
+
+    task_lines = (store.session_dir / "task_log.jsonl").read_text(encoding="utf-8").splitlines()
+    command_lines = (store.session_dir / "command_log.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["task_id"] for line in task_lines] == ["task.inspect", "task.write"]
+    assert [json.loads(line)["command"] for line in command_lines] == [
+        "python -m pytest first",
+        "python -m pytest second",
+    ]
+
+
+def _session_record(
+    workspace,
+    store,
+    *,
+    session_id="session_000001",
+    generation_index=1,
+    task_records=(),
+    command_records=(),
+):
+    return AutonomousSessionRecord(
+        session_id=session_id,
+        workspace_path=str(workspace),
+        organism_id="organism_000001",
+        product_name="Authentication Module",
+        status=AutonomousSessionStatus.RUNNING,
+        max_runtime_seconds=28800,
+        generation_index=generation_index,
+        checkpoint_dir=str(store.session_dir),
+        task_records=task_records,
+        command_records=command_records,
+    )
+
+
 def _request_payload(tmp_path):
     return {
         "session_id": "session_000001",

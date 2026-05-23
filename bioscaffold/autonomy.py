@@ -179,10 +179,22 @@ class AutonomousSessionRecord:
 class SessionCheckpointStore:
     def __init__(self, workspace_path: Path, session_id: str) -> None:
         self.workspace_path = workspace_path.resolve()
+        _validate_session_id(session_id)
         self.session_id = session_id
-        self.session_dir = self.workspace_path / ".bioclaw" / "sessions" / session_id
+        self.sessions_root = (self.workspace_path / ".bioclaw" / "sessions").resolve()
+        self.session_dir = (self.sessions_root / session_id).resolve()
+        try:
+            self.session_dir.relative_to(self.sessions_root)
+        except ValueError as exc:
+            raise ValueError("session_id must resolve under workspace session storage") from exc
 
     def write_checkpoint(self, record: AutonomousSessionRecord) -> None:
+        if record.session_id != self.session_id:
+            raise ValueError("record.session_id does not match checkpoint store session_id")
+        if Path(record.workspace_path).resolve() != self.workspace_path:
+            raise ValueError("record.workspace_path does not match checkpoint store workspace_path")
+        if record.generation_index < 0:
+            raise ValueError("record.generation_index must be non-negative")
         self.session_dir.mkdir(parents=True, exist_ok=True)
         payload = record.to_payload()
         session_content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
@@ -191,6 +203,7 @@ class SessionCheckpointStore:
             session_content,
             encoding="utf-8",
         )
+        # Logs are rewritten from the record's complete in-memory history.
         with (self.session_dir / "task_log.jsonl").open("w", encoding="utf-8") as handle:
             for task in record.task_records:
                 handle.write(json.dumps(task.to_payload(), sort_keys=True) + "\n")
@@ -233,6 +246,14 @@ class SessionCheckpointStore:
             ),
             commit_refs=tuple(payload.get("commit_refs", ())),
         )
+
+
+def _validate_session_id(session_id: str) -> None:
+    if not isinstance(session_id, str) or not session_id:
+        raise ValueError("session_id must be a non-empty string")
+    session_path = Path(session_id)
+    if session_path.is_absolute() or session_path.name != session_id or session_id in {".", ".."}:
+        raise ValueError("session_id must be one safe path segment")
 
 
 class AutonomousPolicy:
