@@ -104,6 +104,7 @@ def test_all_repository_cards_are_valid():
         "plasma-membrane",
         "plasmid",
         "product-organism",
+        "product-workflow",
         "ribosome",
         "rna-transcript",
         "splicing",
