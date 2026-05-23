@@ -15,6 +15,10 @@ from bioscaffold.autonomy import (
     CommandRecord,
     SessionCheckpointStore,
     AutonomousWorkItem,
+    SeedAutonomousRequest,
+    SeedGenerationPlan,
+    SeedGenerationStatus,
+    SeedMicrotaskPlanner,
 )
 
 
@@ -51,6 +55,137 @@ def test_autonomous_request_defaults_to_eight_hour_runtime(tmp_path):
     assert request.allow_local_commits is True
     assert request.allow_push is False
     assert request.project_tasks[0].operation is AutonomousOperation.WRITE_FILE
+
+
+def test_seed_autonomous_request_defaults_to_expected_values(tmp_path):
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(tmp_path),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        }
+    )
+
+    assert request.max_runtime_seconds == 28800
+    assert request.generation_limit == 4
+    assert request.allow_local_edits is True
+    assert request.allow_local_commits is True
+    assert request.allow_push is False
+    assert request.allow_dirty_start is False
+    assert request.verification_commands == ()
+
+
+def test_seed_planner_writes_gitignore_when_missing(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        }
+    )
+    planner = SeedMicrotaskPlanner()
+    plan = planner.plan_generation(request, generation_index=1)
+
+    assert isinstance(plan, SeedGenerationPlan)
+    assert plan.generation_index == 1
+    assert plan.is_terminal is False
+    assert len(plan.verification_commands) == 1
+    assert len(plan.project_tasks) >= 1
+    assert plan.project_tasks[0].operation is AutonomousOperation.WRITE_FILE
+    assert plan.project_tasks[0].path == ".gitignore"
+    assert plan.project_tasks[0].content == ".bioclaw/\n"
+    assert plan.project_tasks[1].operation is AutonomousOperation.RUN_COMMAND
+    assert plan.project_tasks[1].command == "python -c \"print('no tests discovered')\""
+    assert plan.verification_commands[0] == "python -c \"print('no tests discovered')\""
+
+
+def test_seed_planner_appends_bioclaw_to_existing_gitignore(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    (workspace / ".gitignore").write_text("*.pyc\n__pycache__/\n", encoding="utf-8")
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        }
+    )
+    planner = SeedMicrotaskPlanner()
+    plan = planner.plan_generation(request, generation_index=1)
+
+    assert plan.is_terminal is False
+    assert plan.project_tasks[0].operation is AutonomousOperation.WRITE_FILE
+    assert plan.project_tasks[0].path == ".gitignore"
+    assert plan.project_tasks[0].content == "*.pyc\n__pycache__/\n.bioclaw/\n"
+    assert plan.project_tasks[1].operation is AutonomousOperation.RUN_COMMAND
+    assert plan.project_tasks[1].command == "python -c \"print('no tests discovered')\""
+
+
+def test_seed_planner_uses_baseline_verification_when_not_provided(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    (workspace / "tests").mkdir()
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        }
+    )
+    planner = SeedMicrotaskPlanner()
+    plan = planner.plan_generation(request, generation_index=1)
+
+    assert plan.verification_commands == ("python -m pytest -q",)
+
+
+def test_seed_planner_prefers_request_verification_commands(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": ("python -c \"print('custom')\"",),
+        }
+    )
+    planner = SeedMicrotaskPlanner()
+    plan = planner.plan_generation(request, generation_index=1)
+
+    assert plan.verification_commands == ("python -c \"print('custom')\"",)
+
+
+def test_seed_planner_returns_terminal_when_bioclaw_already_ignored(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    (workspace / ".gitignore").write_text(".bioclaw/\n", encoding="utf-8")
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        }
+    )
+    planner = SeedMicrotaskPlanner()
+    plan = planner.plan_generation(request, generation_index=2)
+
+    assert plan.is_terminal is True
+    assert plan.project_tasks == ()
+    assert plan.verification_commands == ()
 
 
 def test_autonomous_policy_denies_push_deploy_install_and_destructive_commands(tmp_path):
