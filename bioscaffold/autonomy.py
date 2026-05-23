@@ -5,6 +5,7 @@ from enum import Enum
 import json
 from pathlib import Path
 import re
+import subprocess
 from typing import Any
 
 from bioscaffold.compiler import ProductRequirement
@@ -248,6 +249,195 @@ class SessionCheckpointStore:
         )
 
 
+class LocalAutonomousExecutor:
+    def __init__(
+        self,
+        *,
+        workspace_path: Path,
+        policy: AutonomousPolicy,
+        allow_local_edits: bool = True,
+    ) -> None:
+        self.workspace_path = workspace_path.resolve()
+        self.policy = policy
+        self.allow_local_edits = allow_local_edits
+
+    def execute(self, item: AutonomousWorkItem) -> tuple[AutonomousTaskRecord, tuple[CommandRecord, ...]]:
+        decision = self.policy.authorize(item)
+        if not decision.allowed:
+            return (
+                AutonomousTaskRecord(
+                    task_id=item.task_id,
+                    operation=item.operation,
+                    state=AutonomousSessionStatus.POLICY_DENIED.value,
+                    reason=decision.reason,
+                    path=item.path,
+                    command=item.command,
+                ),
+                (),
+            )
+
+        if item.operation is AutonomousOperation.WRITE_FILE:
+            return self._write_file(item), ()
+        if item.operation is AutonomousOperation.RUN_COMMAND:
+            command = _run_shell(item.command, cwd=self.workspace_path)
+            state = "completed" if command.exit_code == 0 else "failed"
+            reason = "command completed" if command.exit_code == 0 else f"command failed with exit code {command.exit_code}"
+            return (
+                AutonomousTaskRecord(
+                    task_id=item.task_id,
+                    operation=item.operation,
+                    state=state,
+                    reason=reason,
+                    command=item.command,
+                    outputs=(command.stdout, command.stderr),
+                ),
+                (command,),
+            )
+
+        return (
+            AutonomousTaskRecord(
+                task_id=item.task_id,
+                operation=item.operation,
+                state="completed",
+                reason="operation recorded",
+                path=item.path,
+                command=item.command,
+            ),
+            (),
+        )
+
+    def _write_file(self, item: AutonomousWorkItem) -> AutonomousTaskRecord:
+        if not self.allow_local_edits:
+            return AutonomousTaskRecord(
+                task_id=item.task_id,
+                operation=item.operation,
+                state="blocked",
+                reason="local edits are disabled",
+                path=item.path,
+            )
+
+        target = (self.workspace_path / item.path).resolve()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(item.content, encoding="utf-8")
+        return AutonomousTaskRecord(
+            task_id=item.task_id,
+            operation=item.operation,
+            state="completed",
+            reason=f"wrote {item.path}",
+            path=item.path,
+            outputs=(item.path,),
+        )
+
+
+class AutonomousSessionController:
+    def run(self, request: AutonomousSessionRequest) -> AutonomousSessionRecord:
+        workspace_path = request.workspace_path.resolve()
+        store = SessionCheckpointStore(workspace_path, request.session_id)
+        policy = AutonomousPolicy.default(workspace_path=workspace_path, allow_push=request.allow_push)
+        executor = LocalAutonomousExecutor(
+            workspace_path=workspace_path,
+            policy=policy,
+            allow_local_edits=request.allow_local_edits,
+        )
+        task_records: list[AutonomousTaskRecord] = []
+        command_records: list[CommandRecord] = []
+        commit_refs: list[str] = []
+        status = AutonomousSessionStatus.COMPLETED
+
+        for item in request.project_tasks:
+            task_record, item_command_records = executor.execute(item)
+            task_records.append(task_record)
+            command_records.extend(item_command_records)
+            if task_record.state == AutonomousSessionStatus.POLICY_DENIED.value:
+                status = AutonomousSessionStatus.POLICY_DENIED
+                break
+            if task_record.state != "completed":
+                status = AutonomousSessionStatus.BLOCKED
+                break
+
+        if status is AutonomousSessionStatus.COMPLETED:
+            status = self._run_verification(request, policy, command_records)
+
+        if status is AutonomousSessionStatus.COMPLETED and request.allow_local_commits:
+            status = self._commit_if_changed(workspace_path, request.session_id, command_records, commit_refs)
+
+        record = AutonomousSessionRecord(
+            session_id=request.session_id,
+            workspace_path=str(workspace_path),
+            organism_id=request.organism_id,
+            product_name=request.product_name,
+            status=status,
+            max_runtime_seconds=request.max_runtime_seconds,
+            generation_index=1,
+            checkpoint_dir=str(store.session_dir),
+            task_records=tuple(task_records),
+            command_records=tuple(command_records),
+            commit_refs=tuple(commit_refs),
+        )
+        store.write_checkpoint(record)
+        return record
+
+    def _run_verification(
+        self,
+        request: AutonomousSessionRequest,
+        policy: AutonomousPolicy,
+        command_records: list[CommandRecord],
+    ) -> AutonomousSessionStatus:
+        for index, command in enumerate(request.verification_commands, start=1):
+            decision = policy.authorize(
+                AutonomousWorkItem(
+                    task_id=f"verification.{index}",
+                    operation=AutonomousOperation.RUN_COMMAND,
+                    command=command,
+                )
+            )
+            if not decision.allowed:
+                command_records.append(CommandRecord(command=command, exit_code=1, stdout="", stderr=decision.reason))
+                return AutonomousSessionStatus.POLICY_DENIED
+
+            record = _run_shell(command, cwd=request.workspace_path)
+            command_records.append(record)
+            if record.exit_code != 0:
+                return AutonomousSessionStatus.BLOCKED
+
+        return AutonomousSessionStatus.COMPLETED
+
+    def _commit_if_changed(
+        self,
+        workspace_path: Path,
+        session_id: str,
+        command_records: list[CommandRecord],
+        commit_refs: list[str],
+    ) -> AutonomousSessionStatus:
+        status_record = _run_shell("git status --porcelain", cwd=workspace_path)
+        command_records.append(status_record)
+        if status_record.exit_code != 0:
+            return AutonomousSessionStatus.BLOCKED
+        if not status_record.stdout.strip():
+            return AutonomousSessionStatus.COMPLETED
+
+        add_record = _run_shell("git add -A", cwd=workspace_path)
+        command_records.append(add_record)
+        if add_record.exit_code != 0:
+            return AutonomousSessionStatus.BLOCKED
+
+        commit_record = _run_shell(
+            f'git commit -m "Autonomous session {session_id} generation 1"',
+            cwd=workspace_path,
+        )
+        command_records.append(commit_record)
+        if commit_record.exit_code != 0:
+            return AutonomousSessionStatus.BLOCKED
+
+        rev_parse_record = _run_shell("git rev-parse HEAD", cwd=workspace_path)
+        command_records.append(rev_parse_record)
+        if rev_parse_record.exit_code != 0:
+            return AutonomousSessionStatus.BLOCKED
+
+        commit_refs.append(rev_parse_record.stdout.strip())
+        return AutonomousSessionStatus.COMPLETED
+
+
 def _validate_session_id(session_id: str) -> None:
     if not isinstance(session_id, str) or not session_id:
         raise ValueError("session_id must be a non-empty string")
@@ -354,3 +544,22 @@ def _command_tokens(command: str) -> tuple[str, ...]:
 
 def _is_git_push(tokens: tuple[str, ...]) -> bool:
     return len(tokens) >= 2 and tokens[0] in {"git", "git.exe"} and tokens[1] == "push"
+
+
+def _run_shell(command: str, *, cwd: Path) -> CommandRecord:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            shell=True,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        return CommandRecord(command=command, exit_code=127, stdout="", stderr=str(exc))
+    return CommandRecord(
+        command=command,
+        exit_code=completed.returncode,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
