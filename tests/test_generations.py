@@ -162,3 +162,33 @@ def test_generation_review_quarantines_pathogen_target_without_promoting_plasmid
     assert "plasmid.injected.fake_done.v1" in reviewed.quarantined_structures
     assert "plasmid.injected.fake_done.v1" not in reviewed.promoted_structures
     assert reviewed.immune_memory == ("antibody.fake_completion_marker",)
+
+
+def test_generation_review_records_blocked_failed_and_next_generation_proposals():
+    turn = TurnEngine().close(
+        Turn(
+            turn_id="turn_000001",
+            generation_id="gen_000001",
+            organism_id="organism_000001",
+            tasks=(
+                terminal_task("task_blocked", TaskState.BLOCKED, "gene.blocked"),
+                terminal_task("task_failed", TaskState.FAILED, "gene.failed"),
+            ),
+        )
+    )
+
+    reviewed = GenerationEngine().review(
+        Generation(
+            generation_id="gen_000001",
+            organism_id="organism_000001",
+            turns=(turn,),
+        ),
+        MoleculeRegistry(),
+    )
+
+    assert reviewed.blocked_tasks == ("task_blocked",)
+    assert reviewed.failed_tasks == ("task_failed",)
+    assert [proposal.source_task_id for proposal in reviewed.next_generation_proposals] == [
+        "task_blocked",
+        "task_failed",
+    ]
