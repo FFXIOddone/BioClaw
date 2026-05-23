@@ -10,6 +10,8 @@ from bioscaffold.all_generation import AllGenerationProductRunner, ProductBuildR
 from bioscaffold.autonomy import (
     AutonomousSessionController,
     AutonomousSessionRequest,
+    SeedAutonomousController,
+    SeedAutonomousRequest,
 )
 from bioscaffold.compiler import ProductRequirement
 from bioscaffold.immune import PathogenFixture
@@ -22,6 +24,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_product(args)
     if args.command == "run-session":
         return _run_session(args)
+    if args.command == "run-seed":
+        return _run_seed(args)
     if args.command == "resume-session":
         return _resume_session(args)
     if args.command == "session-status":
@@ -65,6 +69,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to an autonomous session request JSON file.",
     )
     run_session.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty-print JSON output with two-space indentation.",
+    )
+    run_seed = subparsers.add_parser(
+        "run-seed",
+        help="Run a seeded autonomous workflow request.",
+    )
+    run_seed.add_argument(
+        "request",
+        type=Path,
+        help="Path to a seeded autonomous request JSON file.",
+    )
+    run_seed.add_argument(
         "--pretty",
         action="store_true",
         help="Pretty-print JSON output with two-space indentation.",
@@ -139,6 +157,18 @@ def _run_session(args: argparse.Namespace) -> int:
         payload = _read_json_object(args.request, context="request")
         request = AutonomousSessionRequest.from_payload(payload)
         record = AutonomousSessionController().run(request)
+    except (AttributeError, KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    _print_json(record.to_payload(), pretty=args.pretty)
+    return 0
+
+
+def _run_seed(args: argparse.Namespace) -> int:
+    try:
+        payload = _read_json_object(args.request, context="request")
+        request = SeedAutonomousRequest.from_payload(payload)
+        record = SeedAutonomousController().run(request)
     except (AttributeError, KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2

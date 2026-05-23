@@ -301,6 +301,47 @@ def test_run_session_command_pretty_outputs_multiline_json(tmp_path, capsys):
     assert payload["status"] == "completed"
 
 
+def test_run_seed_command_runs_seeded_workflow(tmp_path, capsys):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    subprocess.run(["git", "init"], cwd=workspace, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "bioclaw@example.local"], cwd=workspace, check=True)
+    subprocess.run(["git", "config", "user.name", "BioClaw"], cwd=workspace, check=True)
+    (workspace / "tests").mkdir()
+    (workspace / "tests" / "test_smoke.py").write_text("def test_smoke():\n    assert True\n", encoding="utf-8")
+    request = {
+        "session_id": "seed_session_000001",
+        "workspace_path": str(workspace),
+        "organism_id": "organism_000001",
+        "product_name": "Seeded Automation Baseline",
+        "seed_goal": "Prepare baseline and ensure smoke tests pass.",
+        "generation_limit": 3,
+        "verification_commands": [],
+        "allow_dirty_start": True,
+    }
+    request_path = tmp_path / "seed-request.json"
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+
+    exit_code = main(["run-seed", str(request_path), "--pretty"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["status"] == "completed"
+    seed_summary_path = workspace / ".bioclaw" / "seeds" / "seed_session_000001" / "seed-session.json"
+    assert seed_summary_path.exists()
+
+
+def test_run_seed_command_rejects_invalid_json(tmp_path, capsys):
+    request_path = tmp_path / "bad-seed-request.json"
+    request_path.write_text("{", encoding="utf-8")
+
+    exit_code = main(["run-seed", str(request_path)])
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "Expecting" in stderr
+
+
 def test_session_status_command_pretty_outputs_multiline_json(tmp_path, capsys):
     workspace = tmp_path / "project"
     workspace.mkdir()
