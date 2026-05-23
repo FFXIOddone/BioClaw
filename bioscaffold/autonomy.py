@@ -450,6 +450,17 @@ class AutonomousSessionController:
         if not status_record.stdout.strip():
             return AutonomousSessionStatus.COMPLETED
 
+        unstage_bioclaw_record = _run_shell("git restore --staged -- .bioclaw", cwd=workspace_path)
+        command_records.append(unstage_bioclaw_record)
+        if unstage_bioclaw_record.exit_code != 0:
+            unstage_bioclaw_record = _run_shell(
+                "git rm --cached --ignore-unmatch -r -- .bioclaw",
+                cwd=workspace_path,
+            )
+            command_records.append(unstage_bioclaw_record)
+            if unstage_bioclaw_record.exit_code != 0:
+                return AutonomousSessionStatus.BLOCKED
+
         add_record = _run_shell("git add -A -- . :!.bioclaw", cwd=workspace_path)
         command_records.append(add_record)
         if add_record.exit_code != 0:
