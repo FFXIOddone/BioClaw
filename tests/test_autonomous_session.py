@@ -69,6 +69,56 @@ def test_autonomous_policy_denies_push_deploy_install_and_destructive_commands(t
         assert decision.reason
 
 
+def test_autonomous_policy_denies_secret_read_commands(tmp_path):
+    policy = AutonomousPolicy.default(workspace_path=tmp_path)
+
+    denied = [
+        "Get-Content .env",
+        "type .env",
+        "cat secrets.txt",
+        "printenv OPENAI_API_KEY",
+        "echo %API_KEY%",
+        "echo $OPENAI_API_KEY",
+    ]
+
+    for command in denied:
+        decision = policy.authorize(AutonomousWorkItem("task.secret", AutonomousOperation.RUN_COMMAND, command=command))
+        assert decision.allowed is False
+        assert decision.reason
+
+
+def test_autonomous_policy_denies_commands_with_obvious_path_escape_targets(tmp_path):
+    policy = AutonomousPolicy.default(workspace_path=tmp_path)
+
+    denied = [
+        "python ..\\outside.py",
+        "type ..\\secret.txt",
+        "Get-Content ..\\secret.txt",
+        "python ../outside.py",
+        "python /tmp/outside.py",
+        "python C:\\Windows\\System32\\cmd.exe",
+    ]
+
+    for command in denied:
+        decision = policy.authorize(AutonomousWorkItem("task.path", AutonomousOperation.RUN_COMMAND, command=command))
+        assert decision.allowed is False
+        assert decision.reason
+
+
+def test_autonomous_policy_allows_safe_verification_commands(tmp_path):
+    policy = AutonomousPolicy.default(workspace_path=tmp_path)
+
+    decision = policy.authorize(
+        AutonomousWorkItem(
+            "task.verify",
+            AutonomousOperation.RUN_COMMAND,
+            command="python -c \"print('ok')\"",
+        )
+    )
+
+    assert decision.allowed is True
+
+
 def test_autonomous_request_rejects_non_boolean_policy_flags(tmp_path):
     payload = _request_payload(tmp_path)
 

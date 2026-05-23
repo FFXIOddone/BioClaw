@@ -505,6 +505,10 @@ class AutonomousPolicy:
             return PolicyDecision.deny("git commit is only allowed through the internal commit gate")
         if _is_git_push(tokens) and not self.allow_push:
             return PolicyDecision.deny("push is denied by default")
+        if _is_secret_read_command(tokens, command):
+            return PolicyDecision.deny("secret read is denied by default")
+        if _is_workspace_escape_command(tokens, workspace_path=self.workspace_path):
+            return PolicyDecision.deny("command accesses paths outside workspace by default")
         denied_commands = {"deploy", "publish", "install", "remove-item", "rm", "rmdir", "del", "erase", "rd"}
         if any(token in denied_commands for token in tokens):
             return PolicyDecision.deny("command class is denied by default")
@@ -593,3 +597,79 @@ def _run_shell(command: str, *, cwd: Path) -> CommandRecord:
         stdout=completed.stdout,
         stderr=completed.stderr,
     )
+
+
+_SECRET_HINTS = (
+    "secret",
+    "secrets",
+    ".env",
+    "credential",
+    "credentials",
+    "api_key",
+    "apikey",
+    "token",
+    "passwd",
+    "password",
+    "private_key",
+)
+
+
+def _is_secret_token(text: str) -> bool:
+    lowered = text.lower()
+    if "openai_api_key" in lowered or "api_key" in lowered:
+        return True
+    if re.search(r"%[a-z0-9_]*(secret|token|key|password)[a-z0-9_]*%", lowered):
+        return True
+    if re.search(r"\$[a-z0-9_]*(secret|token|key|password)[a-z0-9_]*", lowered):
+        return True
+    return any(hint in lowered for hint in _SECRET_HINTS)
+
+
+def _is_secret_read_command(tokens: tuple[str, ...], command: str) -> bool:
+    if not tokens:
+        return False
+    verb = tokens[0]
+    if verb in {"get-content", "type", "cat"}:
+        return any(_is_secret_token(argument) for argument in tokens[1:])
+    if verb in {"printenv", "env"}:
+        return True
+    if verb == "echo":
+        return any(_is_secret_token(argument) for argument in tokens[1:])
+    if "printenv" in command.lower():
+        return True
+    return False
+
+
+def _looks_like_path(token: str) -> bool:
+    return "\\" in token or "/" in token or re.search(r"^[a-zA-Z]:[\\\\/]", token) is not None
+
+
+def _is_workspace_escape_command(tokens: tuple[str, ...], workspace_path: Path) -> bool:
+    for token in tokens:
+        candidate = token.strip("\"'`").strip()
+        if not candidate or not _looks_like_path(candidate):
+            continue
+        if _is_parent_path_escape(candidate):
+            return True
+        normalized_candidate = candidate.replace("\\", "/")
+        if _is_absolute_path(normalized_candidate):
+            return not _is_in_workspace(Path(normalized_candidate).resolve(), workspace_path)
+        return not _is_in_workspace((workspace_path / normalized_candidate).resolve(), workspace_path)
+    return False
+
+
+def _is_absolute_path(candidate: str) -> bool:
+    return candidate.startswith("/") or candidate.startswith("\\\\") or re.match(r"^[a-zA-Z]:/", candidate) is not None
+
+
+def _is_parent_path_escape(candidate: str) -> bool:
+    normalized = candidate.replace("\\", "/")
+    return normalized.startswith("../") or normalized.startswith("..//") or "/../" in normalized or normalized == ".."
+
+
+def _is_in_workspace(candidate: Path, workspace_path: Path) -> bool:
+    try:
+        candidate.relative_to(workspace_path)
+    except ValueError:
+        return False
+    return True
