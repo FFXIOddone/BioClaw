@@ -1333,7 +1333,7 @@ git commit -m "Add generation review engine"
 - Modify: `tests/test_component_cards.py`
 - Modify: `bioscaffold/__init__.py`
 
-- [ ] **Step 1: Write failing public export expectation**
+- [x] **Step 1: Write failing public export expectation**
 
 Change `test_package_imports` in `tests/test_component_cards.py` to:
 
@@ -1360,13 +1360,13 @@ def test_package_imports():
     ]
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `python -m pytest tests/test_component_cards.py::test_package_imports -v`
 
 Expected: FAIL because new exports are not present.
 
-- [ ] **Step 3: Update public exports**
+- [x] **Step 3: Update public exports**
 
 Replace `bioscaffold/__init__.py` with:
 
@@ -1399,7 +1399,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Run full verification**
+- [x] **Step 4: Run full verification**
 
 Run: `python -m pytest -v`
 
@@ -1409,7 +1409,7 @@ Run: `git diff --check`
 
 Expected: no output and exit code 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add bioscaffold/__init__.py tests/test_component_cards.py

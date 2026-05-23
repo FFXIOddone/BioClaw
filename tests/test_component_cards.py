@@ -13,7 +13,23 @@ from bioscaffold.types import (
 def test_package_imports():
     import bioscaffold
 
-    assert bioscaffold.__all__ == ["BioCell", "CellRole", "LifecyclePhase"]
+    assert bioscaffold.__all__ == [
+        "AgentHat",
+        "BioCell",
+        "BioScale",
+        "CellRole",
+        "Generation",
+        "GenerationEngine",
+        "LifecyclePhase",
+        "MicroOperation",
+        "MicroTask",
+        "MolecularStructure",
+        "MoleculeRegistry",
+        "MoleculeType",
+        "TaskState",
+        "Turn",
+        "TurnEngine",
+    ]
 
 
 def test_cell_identity_has_lineage_metadata():
