@@ -1,0 +1,21 @@
+bio_component:
+  name: splicing
+  scale: molecular
+  biological_role: Edits RNA before expression.
+  software_role: Removes inactive or invalid clauses from a transcript before work execution.
+  implementation_status: planned
+  inputs: [rna_transcript]
+  outputs: [spliced_transcript]
+  internal_state:
+    splice_rules: Clause removal evidence.
+  sensors: [invalid_clause_count]
+  control_rules: [Splicing must preserve source transcript lineage.]
+  repair_rules: [Unspliceable transcripts are quarantined.]
+  recycle_rules: [Removed clauses are archived as evidence.]
+  replication_rules: [Spliced transcript must point to original transcript.]
+  failure_modes: [lineage loss, invalid clause remains]
+  safety_limits:
+    destructive_edit: false
+  tests_required: [test_agent_hat_policy_rejects_out_of_scope_operation]
+  shutdown_condition: Splicing would remove lineage evidence.
+  human_review_required: true

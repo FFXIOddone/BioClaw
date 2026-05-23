@@ -1,0 +1,22 @@
+bio_component:
+  name: immune-response
+  scale: molecular
+  biological_role: Detects and responds to abnormal or hostile markers.
+  software_role: Quarantines deterministic defect fixtures and records antibody memory.
+  implementation_status: planned
+  inputs: [antigen, molecule_registry]
+  outputs: [immune_event, antibody]
+  internal_state:
+    known_markers: Markers the immune system can recognize.
+  sensors: [detected_marker_count]
+  control_rules: [Immune response cannot delete evidence.]
+  repair_rules: [Unknown markers are preserved for generation review.]
+  recycle_rules: [Resolved attacks are archived with immune event id.]
+  replication_rules: [Accepted antibodies can seed later generations.]
+  failure_modes: [missed known marker, evidence deletion]
+  safety_limits:
+    evidence_deletion: false
+    live_malware: false
+  tests_required: [test_white_blood_cell_quarantines_known_marker]
+  shutdown_condition: Immune response attempts to hide evidence.
+  human_review_required: true

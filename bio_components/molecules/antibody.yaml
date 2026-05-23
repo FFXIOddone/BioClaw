@@ -1,0 +1,21 @@
+bio_component:
+  name: antibody
+  scale: molecular
+  biological_role: Binds to known antigens for immune response.
+  software_role: Learned regression signature or response rule.
+  implementation_status: planned
+  inputs: [antigen, immune_event]
+  outputs: [immune_memory]
+  internal_state:
+    signature: Stable learned defect signature.
+  sensors: [reuse_count]
+  control_rules: [Antibodies can block future matching defects earlier.]
+  repair_rules: [Overbroad antibodies are demoted to review.]
+  recycle_rules: [Obsolete antibodies are archived with replacement reason.]
+  replication_rules: [Antibody memory can seed later generations.]
+  failure_modes: [overbroad block, missing immune evidence]
+  safety_limits:
+    autonomous_policy_mutation: false
+  tests_required: [test_immune_memory_records_accepted_antibodies]
+  shutdown_condition: Antibody has no antigen evidence.
+  human_review_required: true
