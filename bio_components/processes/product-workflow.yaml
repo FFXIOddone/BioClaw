@@ -1,0 +1,24 @@
+bio_component:
+  name: product-workflow
+  scale: organism
+  biological_role: Coordinates birth, growth, hardening, delivery, and death for one organism.
+  software_role: Runs one product workflow from gene plan through archived terminal result.
+  implementation_status: planned
+  inputs: [product_workflow_plan, molecule_registry, immune_system]
+  outputs: [workflow_terminal_result, archived_product_or_failure_state]
+  internal_state:
+    active_organism: The single product organism currently allowed to grow.
+    terminal_state: Archived, quarantined, blocked, or failed.
+  sensors: [turn_count, generation_count, immune_event_count, terminal_state]
+  control_rules: [Only one active product organism can run at a time.]
+  repair_rules: [Blocked and failed generations stop the workflow with evidence.]
+  recycle_rules: [Delivered products are archived before leaving active workflow.]
+  replication_rules: [Workflow does not create additional active product organisms.]
+  failure_modes: [empty gene plan, duplicate gene output, quarantined growth, non-terminal active product]
+  safety_limits:
+    autonomous_deployment: false
+    live_malware: false
+    multiple_active_organisms: false
+  tests_required: [test_product_workflow_runs_clean_product_to_archived_terminal_state]
+  shutdown_condition: Workflow reaches archived, quarantined, blocked, or failed terminal state.
+  human_review_required: true
