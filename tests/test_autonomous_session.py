@@ -1,8 +1,10 @@
 import json
+import subprocess
 
 import pytest
 
 from bioscaffold.autonomy import (
+    AutonomousSessionController,
     AutonomousSessionRecord,
     AutonomousSessionStatus,
     AutonomousOperation,
@@ -297,6 +299,65 @@ def test_checkpoint_store_rewrites_complete_logs_from_record_history(tmp_path):
         "python -m pytest first",
         "python -m pytest second",
     ]
+
+
+def test_autonomous_session_writes_file_verifies_and_commits_generation(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "verification_commands": [
+                "python -c \"from pathlib import Path; assert Path('README.md').read_text(encoding='utf-8') == '# Demo\\n'\""
+            ],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.COMPLETED
+    assert (workspace / "README.md").read_text(encoding="utf-8") == "# Demo\n"
+    assert len(record.commit_refs) == 1
+    assert _git(workspace, "rev-parse", "HEAD").stdout.strip() == record.commit_refs[0]
+    assert _git(workspace, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+    assert (workspace / ".bioclaw" / "sessions" / "session_000001" / "session.json").exists()
+
+
+def test_autonomous_session_blocks_commit_when_verification_fails(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "verification_commands": ["python -c \"raise SystemExit(7)\""],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.BLOCKED
+    assert record.commit_refs == ()
+    assert any(command.exit_code == 7 for command in record.command_records)
+    assert _git(workspace, "rev-parse", "--verify", "HEAD", check=False).returncode != 0
+    assert (workspace / ".bioclaw" / "sessions" / "session_000001" / "session.json").exists()
+
+
+def init_git_repo(workspace):
+    _git(workspace, "init")
+    _git(workspace, "config", "user.email", "test@example.invalid")
+    _git(workspace, "config", "user.name", "BioClaw Test")
+
+
+def _git(workspace, *args, check=True):
+    return subprocess.run(
+        ["git", *args],
+        cwd=workspace,
+        check=check,
+        text=True,
+        capture_output=True,
+    )
 
 
 def _session_record(
