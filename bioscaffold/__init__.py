@@ -9,7 +9,7 @@ from bioscaffold.growth import GrowthCycleResult, GrowthCycleRunner
 from bioscaffold.microtasks import AgentHat, BioScale, MicroOperation, MicroTask, TaskState
 from bioscaffold.molecules import MolecularStructure, MoleculeRegistry, MoleculeType
 from bioscaffold.organism import OrganismStatus, ProductOrganism
-from bioscaffold.turns import Turn, TurnEngine
+from bioscaffold.turns import Turn, TurnEngine, TurnProposal
 from bioscaffold.types import CellRole, LifecyclePhase
 
 __all__ = [
@@ -33,4 +33,5 @@ __all__ = [
     "TaskState",
     "Turn",
     "TurnEngine",
+    "TurnProposal",
 ]
