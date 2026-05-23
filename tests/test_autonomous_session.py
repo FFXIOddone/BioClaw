@@ -191,6 +191,35 @@ def test_seed_planner_returns_terminal_when_bioclaw_already_ignored(tmp_path):
     assert plan.verification_commands == ()
 
 
+def test_seed_planner_keeps_terminal_repo_active_in_burn_mode(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    (workspace / ".gitignore").write_text(".bioclaw/\n", encoding="utf-8")
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": ("python -c \"print('verify')\"",),
+            "run_until_runtime_exhausted": True,
+        }
+    )
+
+    plan = SeedMicrotaskPlanner().plan_generation(request, generation_index=2)
+
+    assert plan.is_terminal is False
+    assert plan.project_tasks == (
+        AutonomousWorkItem(
+            task_id="seed_generation_000002.terminal_verification",
+            operation=AutonomousOperation.RUN_COMMAND,
+            command="python -c \"print('verify')\"",
+        ),
+    )
+    assert plan.verification_commands == ("python -c \"print('verify')\"",)
+
+
 def test_seed_autonomous_request_rejects_non_int_runtime_and_limit_fields(tmp_path):
     payload = {
         "session_id": "seed_session_000001",
@@ -211,6 +240,12 @@ def test_seed_autonomous_request_rejects_non_int_runtime_and_limit_fields(tmp_pa
 
     with pytest.raises(ValueError, match="generation_limit"):
         SeedAutonomousRequest.from_payload({**payload, "generation_limit": False})
+
+    with pytest.raises(ValueError, match="turn_delay_seconds"):
+        SeedAutonomousRequest.from_payload({**payload, "turn_delay_seconds": "5"})
+
+    with pytest.raises(ValueError, match="turn_delay_seconds"):
+        SeedAutonomousRequest.from_payload({**payload, "turn_delay_seconds": True})
 
 
 def test_seed_plan_record_payload_is_json_friendly_with_serialized_enums(tmp_path):
@@ -308,6 +343,51 @@ def test_seed_autonomous_controller_writes_seed_summary_and_stops_on_terminal_pl
     payload = json.loads(summary_path.read_text(encoding="utf-8"))
     assert payload["status"] == SeedGenerationStatus.COMPLETED.value
     assert payload["generations"][0]["inner_checkpoint_path"] == record.generations[0].inner_checkpoint_path
+
+
+def test_seed_autonomous_controller_burn_mode_runs_until_runtime_budget(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    (workspace / ".gitignore").write_text(".bioclaw/\n", encoding="utf-8")
+    _git(workspace, "add", ".gitignore")
+    _git(workspace, "commit", "-m", "Baseline ignored checkpoints")
+    clock = FakeClock()
+    session_controller = AdvancingCompletedSessionController(clock=clock, seconds_per_run=1.0)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": ("python -c \"print('verify')\"",),
+            "run_until_runtime_exhausted": True,
+            "turn_delay_seconds": 1,
+            "max_runtime_seconds": 3,
+            "generation_limit": 10,
+        }
+    )
+
+    record = SeedAutonomousController(
+        session_controller=session_controller,
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    ).run(request)
+
+    assert record.status is SeedGenerationStatus.COMPLETED
+    assert len(record.generations) == 2
+    assert [generation.generation_index for generation in record.generations] == [1, 2]
+    assert all(not generation.terminal for generation in record.generations)
+    assert all(generation.inner_status == AutonomousSessionStatus.COMPLETED.value for generation in record.generations)
+    assert clock.sleeps == [1]
+
+    summary_path = workspace / ".bioclaw" / "seeds" / request.session_id / "seed-session.json"
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert payload["status"] == SeedGenerationStatus.COMPLETED.value
+    assert payload["run_until_runtime_exhausted"] is True
+    assert payload["turn_delay_seconds"] == 1
+    assert len(payload["generations"]) == 2
 
 
 def test_seed_autonomous_controller_does_not_commit_or_leave_pytest_artifacts(tmp_path):
@@ -1102,3 +1182,37 @@ def _request_payload(tmp_path):
         ],
         "verification_commands": ["python -c \"print('ok')\""],
     }
+
+
+class FakeClock:
+    def __init__(self):
+        self.current = 0.0
+        self.sleeps = []
+
+    def monotonic(self):
+        return self.current
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.current += seconds
+
+
+class AdvancingCompletedSessionController:
+    def __init__(self, *, clock, seconds_per_run):
+        self.clock = clock
+        self.seconds_per_run = seconds_per_run
+        self.requests = []
+
+    def run(self, request):
+        self.requests.append(request)
+        self.clock.current += self.seconds_per_run
+        return AutonomousSessionRecord(
+            session_id=request.session_id,
+            workspace_path=str(request.workspace_path),
+            organism_id=request.organism_id,
+            product_name=request.product_name,
+            status=AutonomousSessionStatus.COMPLETED,
+            max_runtime_seconds=request.max_runtime_seconds,
+            generation_index=1,
+            checkpoint_dir=str(request.workspace_path / ".bioclaw" / "sessions" / request.session_id),
+        )

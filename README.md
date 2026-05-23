@@ -103,6 +103,19 @@ Seeded runs are bounded by:
 - `generation_limit` (stop after the configured number of microtask generations),
 - `max_runtime_seconds` (session runtime limit for each inner autonomous session).
 
+For full endurance runs, set:
+
+```json
+{
+  "run_until_runtime_exhausted": true,
+  "turn_delay_seconds": 60,
+  "generation_limit": 10000,
+  "max_runtime_seconds": 28800
+}
+```
+
+In this mode a terminal/no-work repository does not stop immediately. BioClaw converts terminal state into verification-only generations and keeps running turn after turn until the wall-clock budget is exhausted, a safety policy blocks execution, verification fails, or the generation ceiling is reached.
+
 Seeded workflow inherits existing autonomous policy defaults:
 
 - push is denied unless explicitly allowed,

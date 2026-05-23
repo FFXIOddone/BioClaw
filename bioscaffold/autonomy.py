@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
-from typing import Any
+from typing import Any, Callable
 
 from bioscaffold.compiler import ProductRequirement
 from bioscaffold.types import PolicyDecision
@@ -143,11 +143,17 @@ class SeedAutonomousRequest:
     allow_local_commits: bool = True
     allow_push: bool = False
     allow_dirty_start: bool = False
+    run_until_runtime_exhausted: bool = False
+    turn_delay_seconds: int = 0
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "SeedAutonomousRequest":
         if not isinstance(payload, dict):
             raise ValueError("payload must be a dictionary")
+
+        turn_delay_seconds = _optional_int(payload, "turn_delay_seconds", 0)
+        if turn_delay_seconds < 0:
+            raise ValueError("turn_delay_seconds must be greater than or equal to zero")
 
         return cls(
             session_id=_required_string(payload, "session_id"),
@@ -162,6 +168,8 @@ class SeedAutonomousRequest:
             allow_local_commits=_optional_bool(payload, "allow_local_commits", True),
             allow_push=_optional_bool(payload, "allow_push", False),
             allow_dirty_start=_optional_bool(payload, "allow_dirty_start", False),
+            run_until_runtime_exhausted=_optional_bool(payload, "run_until_runtime_exhausted", False),
+            turn_delay_seconds=turn_delay_seconds,
         )
 
 
@@ -211,18 +219,27 @@ class SeedAutonomousController:
         *,
         planner: SeedMicrotaskPlanner | None = None,
         session_controller: AutonomousSessionController | None = None,
+        clock: Callable[[], float] | None = None,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         self.planner = planner or SeedMicrotaskPlanner()
         self.session_controller = session_controller or AutonomousSessionController()
+        self.clock = clock or time.monotonic
+        self.sleep = sleep or time.sleep
 
     def run(self, request: SeedAutonomousRequest) -> SeedAutonomousRecord:
         workspace_path = request.workspace_path.resolve()
         seed_session_dir = (workspace_path / ".bioclaw" / "seeds" / request.session_id).resolve()
         generations: list[SeedGenerationRecord] = []
+        started_at = self.clock()
 
         status = SeedGenerationStatus.GENERATION_LIMIT_REACHED if request.generation_limit <= 0 else SeedGenerationStatus.COMPLETED
 
         for generation_index in range(1, request.generation_limit + 1):
+            if request.run_until_runtime_exhausted and self._runtime_exhausted(request, started_at):
+                status = SeedGenerationStatus.COMPLETED
+                break
+
             plan = self.planner.plan_generation(request, generation_index=generation_index)
 
             if plan.is_terminal or not plan.project_tasks:
@@ -252,7 +269,7 @@ class SeedAutonomousController:
                 ],
                 "project_tasks": [task.to_payload() for task in plan.project_tasks],
                 "verification_commands": list(plan.verification_commands),
-                "max_runtime_seconds": request.max_runtime_seconds,
+                "max_runtime_seconds": self._remaining_runtime_seconds(request, started_at),
                 "allow_local_edits": request.allow_local_edits,
                 "allow_local_commits": request.allow_local_commits,
                 "allow_push": request.allow_push,
@@ -276,6 +293,15 @@ class SeedAutonomousController:
                     inner_status=inner_status.value,
                 )
                 generations.append(generation)
+                if request.run_until_runtime_exhausted:
+                    if self._runtime_exhausted(request, started_at):
+                        status = SeedGenerationStatus.COMPLETED
+                        break
+                    if generation_index < request.generation_limit and request.turn_delay_seconds > 0:
+                        self.sleep(min(request.turn_delay_seconds, self._remaining_runtime_seconds(request, started_at)))
+                        if self._runtime_exhausted(request, started_at):
+                            status = SeedGenerationStatus.COMPLETED
+                            break
                 continue
 
             mapped_status = self._map_inner_status(inner_status)
@@ -307,6 +333,8 @@ class SeedAutonomousController:
             status=status,
             generation_limit=request.generation_limit,
             max_runtime_seconds=request.max_runtime_seconds,
+            run_until_runtime_exhausted=request.run_until_runtime_exhausted,
+            turn_delay_seconds=request.turn_delay_seconds,
             generations=tuple(generations),
         ).to_payload()
         (seed_session_dir / "seed-session.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -319,8 +347,21 @@ class SeedAutonomousController:
             status=status,
             generation_limit=request.generation_limit,
             max_runtime_seconds=request.max_runtime_seconds,
+            run_until_runtime_exhausted=request.run_until_runtime_exhausted,
+            turn_delay_seconds=request.turn_delay_seconds,
             generations=tuple(generations),
         )
+
+    def _runtime_exhausted(self, request: SeedAutonomousRequest, started_at: float) -> bool:
+        return self.clock() - started_at >= request.max_runtime_seconds
+
+    def _remaining_runtime_seconds(self, request: SeedAutonomousRequest, started_at: float) -> int:
+        if not request.run_until_runtime_exhausted:
+            return request.max_runtime_seconds
+        remaining = request.max_runtime_seconds - (self.clock() - started_at)
+        if remaining <= 0:
+            return 0
+        return max(1, int(remaining))
 
     @staticmethod
     def _map_inner_status(inner_status: AutonomousSessionStatus) -> SeedGenerationStatus:
@@ -345,6 +386,8 @@ class SeedAutonomousRecord:
     status: SeedGenerationStatus
     generation_limit: int
     max_runtime_seconds: int
+    run_until_runtime_exhausted: bool = False
+    turn_delay_seconds: int = 0
     generations: tuple[SeedGenerationRecord, ...] = ()
 
     def to_payload(self) -> dict[str, Any]:
@@ -357,6 +400,8 @@ class SeedAutonomousRecord:
             "status": self.status.value,
             "generation_limit": self.generation_limit,
             "max_runtime_seconds": self.max_runtime_seconds,
+            "run_until_runtime_exhausted": self.run_until_runtime_exhausted,
+            "turn_delay_seconds": self.turn_delay_seconds,
             "generations": [generation.to_payload() for generation in self.generations],
         }
 
@@ -370,7 +415,21 @@ class SeedMicrotaskPlanner:
 
         existing_gitignore = workspace_path / ".gitignore"
         seed_gitignore_entries = _seed_gitignore_entries(workspace_path)
+        verification_commands = request.verification_commands or (baseline_command,)
         if _is_gitignore_seed_ready(existing_gitignore, seed_gitignore_entries):
+            if request.run_until_runtime_exhausted:
+                return SeedGenerationPlan(
+                    generation_index=generation_index,
+                    project_tasks=(
+                        AutonomousWorkItem(
+                            task_id=f"seed_generation_{generation_index:06d}.terminal_verification",
+                            operation=AutonomousOperation.RUN_COMMAND,
+                            command=verification_commands[0],
+                        ),
+                    ),
+                    verification_commands=verification_commands,
+                    is_terminal=False,
+                )
             return SeedGenerationPlan(
                 generation_index=generation_index,
                 project_tasks=(),
@@ -397,8 +456,6 @@ class SeedMicrotaskPlanner:
                 command=baseline_command,
             ),
         )
-
-        verification_commands = request.verification_commands or (baseline_command,)
 
         return SeedGenerationPlan(
             generation_index=generation_index,
