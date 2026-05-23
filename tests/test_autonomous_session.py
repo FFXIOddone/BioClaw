@@ -507,6 +507,45 @@ def test_autonomous_session_unstages_staged_bioclaw_checkpoint_noise_before_comm
     assert all(not path.startswith(".bioclaw/") for path in committed_files)
 
 
+def test_autonomous_session_skips_commit_when_only_checkpoint_noise_staged(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    (workspace / ".bioclaw" / "sessions" / "old").mkdir(parents=True)
+    checkpoint_noise = workspace / ".bioclaw" / "sessions" / "old" / "session.json"
+    checkpoint_noise.write_text("{}", encoding="utf-8")
+    _git(workspace, "add", str(checkpoint_noise))
+    request = AutonomousSessionRequest.from_payload(
+        {
+            "session_id": "session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_000001",
+            "product_name": "Authentication Module",
+            "requirements": [
+                {
+                    "requirement_id": "password-policy",
+                    "text": "Require password policy.",
+                    "artifact_type": "code",
+                }
+            ],
+            "project_tasks": [
+                {
+                    "task_id": "task.verify.only",
+                    "operation": "run_command",
+                    "command": "python -c \"print('ok')\"",
+                },
+            ],
+            "verification_commands": [],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.COMPLETED
+    assert record.commit_refs == ()
+    assert _git(workspace, "rev-list", "--count", "HEAD", check=False).returncode == 128
+
+
 def test_autonomous_session_blocks_commit_when_verification_fails(tmp_path):
     workspace = tmp_path / "repo"
     workspace.mkdir()
