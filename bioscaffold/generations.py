@@ -5,7 +5,7 @@ from enum import Enum
 
 from bioscaffold.microtasks import TaskState
 from bioscaffold.molecules import MoleculeRegistry, MoleculeType
-from bioscaffold.turns import Turn, TurnStatus
+from bioscaffold.turns import Turn, TurnProposal, TurnStatus
 
 
 class GenerationStatus(str, Enum):
@@ -22,6 +22,9 @@ class Generation:
     promoted_structures: tuple[str, ...] = ()
     quarantined_structures: tuple[str, ...] = ()
     immune_memory: tuple[str, ...] = ()
+    blocked_tasks: tuple[str, ...] = ()
+    failed_tasks: tuple[str, ...] = ()
+    next_generation_proposals: tuple[TurnProposal, ...] = ()
 
 
 class GenerationEngine:
@@ -34,12 +37,20 @@ class GenerationEngine:
 
         promoted = []
         quarantined = []
+        blocked = []
+        failed = []
+        proposals = []
         for turn in generation.turns:
+            proposals.extend(turn.next_turn_proposals)
             for task in turn.tasks:
                 if task.state is TaskState.COMPLETE:
                     promoted.extend(task.outputs)
                 if task.state is TaskState.QUARANTINED:
                     quarantined.extend(task.outputs or (task.target_ref,))
+                if task.state is TaskState.BLOCKED:
+                    blocked.append(task.task_id)
+                if task.state is TaskState.FAILED:
+                    failed.append(task.task_id)
 
         quarantined_refs = set(quarantined)
         promoted = [
@@ -58,6 +69,9 @@ class GenerationEngine:
             promoted_structures=tuple(dict.fromkeys(promoted)),
             quarantined_structures=tuple(dict.fromkeys(quarantined)),
             immune_memory=immune_memory,
+            blocked_tasks=tuple(dict.fromkeys(blocked)),
+            failed_tasks=tuple(dict.fromkeys(failed)),
+            next_generation_proposals=tuple(dict.fromkeys(proposals)),
         )
 
     def _is_promotable(self, registry: MoleculeRegistry, ref: str) -> bool:
