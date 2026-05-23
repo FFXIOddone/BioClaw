@@ -52,6 +52,26 @@ Minimal request:
 
 If `--output` is omitted, the delivery report JSON is written to stdout. Reports include the terminal state, archive ref, generation IDs, task IDs, validation refs, assembly refs, immune events, and project microtask count.
 
+### Autonomous Session Mode
+
+For local-only autonomous project work:
+
+```powershell
+python -m bioscaffold run-session .\autonomous-request.json --pretty
+python -m bioscaffold session-status .\.bioclaw\sessions\<session_id>\session.json --pretty
+python -m bioscaffold resume-session .\.bioclaw\sessions\<session_id>\session.json --pretty
+```
+
+The default runtime budget is eight hours. Autonomous mode allows local file edits, local verification commands, checkpoint writes, and local commits. By default, it denies:
+
+- push
+- deploy
+- publish
+- install
+- destructive commands (for example, deletion or recursive removal)
+- secret reads
+- commands that target paths outside the workspace
+
 ## Planning Artifacts
 
 - Design spec: `docs/superpowers/specs/2026-05-22-bioscaffold-os-design.md`
