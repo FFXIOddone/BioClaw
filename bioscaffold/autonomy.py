@@ -332,6 +332,7 @@ class LocalAutonomousExecutor:
 class AutonomousSessionController:
     def run(self, request: AutonomousSessionRequest) -> AutonomousSessionRecord:
         workspace_path = request.workspace_path.resolve()
+        generation_index = 1
         store = SessionCheckpointStore(workspace_path, request.session_id)
         policy = AutonomousPolicy.default(workspace_path=workspace_path, allow_push=request.allow_push)
         executor = LocalAutonomousExecutor(
@@ -359,7 +360,13 @@ class AutonomousSessionController:
             status = self._run_verification(request, policy, command_records)
 
         if status is AutonomousSessionStatus.COMPLETED and request.allow_local_commits:
-            status = self._commit_if_changed(workspace_path, request.session_id, command_records, commit_refs)
+            status = self._commit_if_changed(
+                workspace_path,
+                request.session_id,
+                generation_index,
+                command_records,
+                commit_refs,
+            )
 
         record = AutonomousSessionRecord(
             session_id=request.session_id,
@@ -368,7 +375,7 @@ class AutonomousSessionController:
             product_name=request.product_name,
             status=status,
             max_runtime_seconds=request.max_runtime_seconds,
-            generation_index=1,
+            generation_index=generation_index,
             checkpoint_dir=str(store.session_dir),
             task_records=tuple(task_records),
             command_records=tuple(command_records),
@@ -406,6 +413,7 @@ class AutonomousSessionController:
         self,
         workspace_path: Path,
         session_id: str,
+        generation_index: int,
         command_records: list[CommandRecord],
         commit_refs: list[str],
     ) -> AutonomousSessionStatus:
@@ -422,7 +430,7 @@ class AutonomousSessionController:
             return AutonomousSessionStatus.BLOCKED
 
         commit_record = _run_shell(
-            f'git commit -m "Autonomous session {session_id} generation 1"',
+            f'git commit -m "Autonomous session {session_id} generation {generation_index}"',
             cwd=workspace_path,
         )
         command_records.append(commit_record)
@@ -484,6 +492,8 @@ class AutonomousPolicy:
         if not command.strip():
             return PolicyDecision.deny("command is required")
         tokens = _command_tokens(command)
+        if _is_git_commit(tokens):
+            return PolicyDecision.deny("git commit is only allowed through the internal commit gate")
         if _is_git_push(tokens) and not self.allow_push:
             return PolicyDecision.deny("push is denied by default")
         denied_commands = {"deploy", "publish", "install", "remove-item", "rm", "rmdir", "del", "erase", "rd"}
@@ -539,11 +549,22 @@ def _required_list(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
 
 def _command_tokens(command: str) -> tuple[str, ...]:
     normalized = re.sub(r"\s+", " ", command.strip().lower())
-    return tuple(token for token in re.split(r"[;&| ]+", normalized) if token)
+    return tuple(token.strip("\"'`") for token in re.split(r"[;&| ]+", normalized) if token.strip("\"'`"))
 
 
 def _is_git_push(tokens: tuple[str, ...]) -> bool:
-    return len(tokens) >= 2 and tokens[0] in {"git", "git.exe"} and tokens[1] == "push"
+    return _has_git_subcommand(tokens, "push")
+
+
+def _is_git_commit(tokens: tuple[str, ...]) -> bool:
+    return _has_git_subcommand(tokens, "commit")
+
+
+def _has_git_subcommand(tokens: tuple[str, ...], subcommand: str) -> bool:
+    return any(
+        token in {"git", "git.exe"} and index + 1 < len(tokens) and tokens[index + 1] == subcommand
+        for index, token in enumerate(tokens)
+    )
 
 
 def _run_shell(command: str, *, cwd: Path) -> CommandRecord:

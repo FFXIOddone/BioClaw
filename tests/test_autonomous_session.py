@@ -101,6 +101,20 @@ def test_autonomous_policy_denies_git_commit_until_commit_gate_exists(tmp_path):
     assert decision.reason
 
 
+def test_autonomous_policy_denies_run_command_git_commit_bypasses(tmp_path):
+    policy = AutonomousPolicy.default(workspace_path=tmp_path)
+
+    denied = [
+        AutonomousWorkItem("task.git_commit", AutonomousOperation.RUN_COMMAND, command="git commit -m bypass"),
+        AutonomousWorkItem("task.git_exe_commit", AutonomousOperation.RUN_COMMAND, command="git.exe commit -m bypass"),
+    ]
+
+    for item in denied:
+        decision = policy.authorize(item)
+        assert decision.allowed is False
+        assert decision.reason
+
+
 def test_autonomous_work_item_rejects_present_non_string_optional_fields():
     with pytest.raises(ValueError, match="project_tasks\\[\\].command"):
         AutonomousWorkItem.from_payload(
@@ -342,6 +356,51 @@ def test_autonomous_session_blocks_commit_when_verification_fails(tmp_path):
     assert any(command.exit_code == 7 for command in record.command_records)
     assert _git(workspace, "rev-parse", "--verify", "HEAD", check=False).returncode != 0
     assert (workspace / ".bioclaw" / "sessions" / "session_000001" / "session.json").exists()
+
+
+def test_autonomous_session_denies_run_command_git_commit_and_does_not_commit(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "project_tasks": [
+                {
+                    "task_id": "task.commit.bypass",
+                    "operation": "run_command",
+                    "command": "git commit --allow-empty -m bypass",
+                }
+            ],
+            "verification_commands": [],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.POLICY_DENIED
+    assert record.commit_refs == ()
+    assert record.task_records[0].state == AutonomousSessionStatus.POLICY_DENIED.value
+    assert _git(workspace, "rev-parse", "--verify", "HEAD", check=False).returncode != 0
+
+
+def test_autonomous_session_denies_verification_git_commit_and_does_not_commit(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "verification_commands": ["git commit --allow-empty -m verify-bypass"],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.POLICY_DENIED
+    assert record.commit_refs == ()
+    assert any(command.command == "git commit --allow-empty -m verify-bypass" for command in record.command_records)
+    assert _git(workspace, "rev-parse", "--verify", "HEAD", check=False).returncode != 0
 
 
 def init_git_repo(workspace):
