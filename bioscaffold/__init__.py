@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from bioscaffold.cell import BioCell
+from bioscaffold.expression import ExpressionEngine
 from bioscaffold.generations import Generation, GenerationEngine
 from bioscaffold.microtasks import AgentHat, BioScale, MicroOperation, MicroTask, TaskState
 from bioscaffold.molecules import MolecularStructure, MoleculeRegistry, MoleculeType
+from bioscaffold.organism import OrganismStatus, ProductOrganism
 from bioscaffold.turns import Turn, TurnEngine
 from bioscaffold.types import CellRole, LifecyclePhase
 
@@ -14,6 +16,7 @@ __all__ = [
     "BioCell",
     "BioScale",
     "CellRole",
+    "ExpressionEngine",
     "Generation",
     "GenerationEngine",
     "LifecyclePhase",
@@ -22,6 +25,8 @@ __all__ = [
     "MolecularStructure",
     "MoleculeRegistry",
     "MoleculeType",
+    "OrganismStatus",
+    "ProductOrganism",
     "TaskState",
     "Turn",
     "TurnEngine",
