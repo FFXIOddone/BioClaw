@@ -64,6 +64,19 @@ def test_product_organism_refuses_delivery_with_quarantined_growth():
         quarantined.deliver()
 
 
+def test_product_organism_integration_is_idempotent_for_same_generation():
+    organism = ProductOrganism.birth(
+        organism_id="organism_000001",
+        product_name="Authentication Module",
+    )
+
+    once = organism.integrate_generation(reviewed_generation())
+    twice = once.integrate_generation(reviewed_generation())
+
+    assert twice.generation_ids == ("gen_000001",)
+    assert twice.stable_structures == ("protein.auth.password_policy.v1",)
+
+
 def test_product_organism_requires_reviewed_generation():
     organism = ProductOrganism.birth(
         organism_id="organism_000001",

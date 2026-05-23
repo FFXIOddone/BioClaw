@@ -39,7 +39,7 @@ class ProductOrganism:
             raise ValueError("only reviewed generations can be integrated")
         if generation.organism_id != self.organism_id:
             raise ValueError("generation belongs to a different organism")
-        generation_ids = (*self.generation_ids, generation.generation_id)
+        generation_ids = tuple(dict.fromkeys((*self.generation_ids, generation.generation_id)))
         stable = tuple(dict.fromkeys((*self.stable_structures, *generation.promoted_structures)))
         quarantined = tuple(
             dict.fromkeys((*self.quarantined_structures, *generation.quarantined_structures))
