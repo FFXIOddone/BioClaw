@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import json
 from pathlib import Path
 import re
 from typing import Any
@@ -173,6 +174,65 @@ class AutonomousSessionRecord:
             "command_records": [record.to_payload() for record in self.command_records],
             "commit_refs": list(self.commit_refs),
         }
+
+
+class SessionCheckpointStore:
+    def __init__(self, workspace_path: Path, session_id: str) -> None:
+        self.workspace_path = workspace_path.resolve()
+        self.session_id = session_id
+        self.session_dir = self.workspace_path / ".bioclaw" / "sessions" / session_id
+
+    def write_checkpoint(self, record: AutonomousSessionRecord) -> None:
+        self.session_dir.mkdir(parents=True, exist_ok=True)
+        payload = record.to_payload()
+        session_content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+        (self.session_dir / "session.json").write_text(session_content, encoding="utf-8")
+        (self.session_dir / f"generation_{record.generation_index:06d}.json").write_text(
+            session_content,
+            encoding="utf-8",
+        )
+        with (self.session_dir / "task_log.jsonl").open("w", encoding="utf-8") as handle:
+            for task in record.task_records:
+                handle.write(json.dumps(task.to_payload(), sort_keys=True) + "\n")
+        with (self.session_dir / "command_log.jsonl").open("w", encoding="utf-8") as handle:
+            for command in record.command_records:
+                handle.write(json.dumps(command.to_payload(), sort_keys=True) + "\n")
+
+    @classmethod
+    def load(cls, session_path: Path) -> AutonomousSessionRecord:
+        payload = json.loads(session_path.read_text(encoding="utf-8-sig"))
+        return AutonomousSessionRecord(
+            session_id=payload["session_id"],
+            workspace_path=payload["workspace_path"],
+            organism_id=payload["organism_id"],
+            product_name=payload["product_name"],
+            status=AutonomousSessionStatus(payload["status"]),
+            max_runtime_seconds=int(payload["max_runtime_seconds"]),
+            generation_index=int(payload["generation_index"]),
+            checkpoint_dir=payload["checkpoint_dir"],
+            task_records=tuple(
+                AutonomousTaskRecord(
+                    task_id=item["task_id"],
+                    operation=AutonomousOperation(item["operation"]),
+                    state=item["state"],
+                    reason=item["reason"],
+                    path=item.get("path", ""),
+                    command=item.get("command", ""),
+                    outputs=tuple(item.get("outputs", ())),
+                )
+                for item in payload.get("task_records", ())
+            ),
+            command_records=tuple(
+                CommandRecord(
+                    command=item["command"],
+                    exit_code=int(item["exit_code"]),
+                    stdout=item.get("stdout", ""),
+                    stderr=item.get("stderr", ""),
+                )
+                for item in payload.get("command_records", ())
+            ),
+            commit_refs=tuple(payload.get("commit_refs", ())),
+        )
 
 
 class AutonomousPolicy:
