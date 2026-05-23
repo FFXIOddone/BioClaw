@@ -8,6 +8,8 @@ def reviewed_generation(
     *,
     promoted: tuple[str, ...] = ("protein.auth.password_policy.v1",),
     quarantined: tuple[str, ...] = (),
+    blocked: tuple[str, ...] = (),
+    failed: tuple[str, ...] = (),
 ) -> Generation:
     return Generation(
         generation_id="gen_000001",
@@ -15,6 +17,8 @@ def reviewed_generation(
         status=GenerationStatus.REVIEWED,
         promoted_structures=promoted,
         quarantined_structures=quarantined,
+        blocked_tasks=blocked,
+        failed_tasks=failed,
     )
 
 
@@ -75,6 +79,36 @@ def test_product_organism_integration_is_idempotent_for_same_generation():
 
     assert twice.generation_ids == ("gen_000001",)
     assert twice.stable_structures == ("protein.auth.password_policy.v1",)
+
+
+def test_product_organism_becomes_blocked_from_blocked_generation():
+    organism = ProductOrganism.birth(
+        organism_id="organism_000001",
+        product_name="Authentication Module",
+    )
+
+    blocked = organism.integrate_generation(
+        reviewed_generation(promoted=(), blocked=("task_blocked",))
+    )
+
+    assert blocked.status is OrganismStatus.BLOCKED
+    with pytest.raises(ValueError, match="blocked organism cannot be delivered"):
+        blocked.deliver()
+
+
+def test_product_organism_becomes_failed_from_failed_generation():
+    organism = ProductOrganism.birth(
+        organism_id="organism_000001",
+        product_name="Authentication Module",
+    )
+
+    failed = organism.integrate_generation(
+        reviewed_generation(promoted=(), failed=("task_failed",))
+    )
+
+    assert failed.status is OrganismStatus.FAILED
+    with pytest.raises(ValueError, match="failed organism cannot be delivered"):
+        failed.deliver()
 
 
 def test_product_organism_requires_reviewed_generation():
