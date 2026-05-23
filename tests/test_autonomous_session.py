@@ -390,6 +390,47 @@ def test_seed_autonomous_controller_burn_mode_runs_until_runtime_budget(tmp_path
     assert len(payload["generations"]) == 2
 
 
+def test_seed_autonomous_controller_resumes_existing_seed_summary_for_generation_batches(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    clock = FakeClock()
+    session_controller = AdvancingCompletedSessionController(clock=clock, seconds_per_run=1.0)
+    request_payload = {
+        "session_id": "seed_session_000001",
+        "workspace_path": str(workspace),
+        "organism_id": "organism_seed",
+        "product_name": "Seed Baseline",
+        "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        "resume_existing_seed": True,
+        "generation_batch_size": 1,
+        "generation_limit": 4,
+        "allow_dirty_start": True,
+    }
+    controller = SeedAutonomousController(
+        session_controller=session_controller,
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    )
+
+    first_record = controller.run(SeedAutonomousRequest.from_payload(request_payload))
+    second_record = controller.run(SeedAutonomousRequest.from_payload(request_payload))
+
+    assert first_record.status is SeedGenerationStatus.PAUSED
+    assert second_record.status is SeedGenerationStatus.PAUSED
+    assert [generation.generation_index for generation in second_record.generations] == [1, 2]
+    assert [request.session_id for request in session_controller.requests] == [
+        "seed_session_000001_g000001",
+        "seed_session_000001_g000002",
+    ]
+    summary_path = workspace / ".bioclaw" / "seeds" / "seed_session_000001" / "seed-session.json"
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert payload["status"] == SeedGenerationStatus.PAUSED.value
+    assert payload["resume_existing_seed"] is True
+    assert payload["generation_batch_size"] == 1
+    assert [generation["generation_index"] for generation in payload["generations"]] == [1, 2]
+
+
 def test_seed_autonomous_controller_does_not_commit_or_leave_pytest_artifacts(tmp_path):
     workspace = tmp_path / "repo"
     workspace.mkdir()
