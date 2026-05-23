@@ -1,9 +1,16 @@
+import json
+
 import pytest
 
 from bioscaffold.autonomy import (
+    AutonomousSessionRecord,
+    AutonomousSessionStatus,
     AutonomousOperation,
     AutonomousPolicy,
     AutonomousSessionRequest,
+    AutonomousTaskRecord,
+    CommandRecord,
+    SessionCheckpointStore,
     AutonomousWorkItem,
 )
 
@@ -124,6 +131,98 @@ def test_autonomous_policy_denies_windows_command_bypasses(tmp_path):
         decision = policy.authorize(item)
         assert decision.allowed is False
         assert decision.reason
+
+
+def test_checkpoint_store_writes_session_generation_and_task_logs(tmp_path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    store = SessionCheckpointStore(workspace, "session_000001")
+    record = AutonomousSessionRecord(
+        session_id="session_000001",
+        workspace_path=str(workspace),
+        organism_id="organism_000001",
+        product_name="Authentication Module",
+        status=AutonomousSessionStatus.RUNNING,
+        max_runtime_seconds=28800,
+        generation_index=1,
+        checkpoint_dir=str(store.session_dir),
+        task_records=(
+            AutonomousTaskRecord(
+                task_id="task.write.readme",
+                operation=AutonomousOperation.WRITE_FILE,
+                state="completed",
+                reason="wrote README.md",
+                path="README.md",
+                outputs=("README.md",),
+            ),
+        ),
+        command_records=(
+            CommandRecord(
+                command="python -m pytest tests/test_autonomous_session.py",
+                exit_code=0,
+                stdout="1 passed",
+                stderr="",
+            ),
+        ),
+        commit_refs=("abc1234",),
+    )
+
+    store.write_checkpoint(record)
+
+    assert (store.session_dir / "session.json").exists()
+    assert (store.session_dir / "generation_000001.json").exists()
+    assert (store.session_dir / "task_log.jsonl").exists()
+    assert (store.session_dir / "command_log.jsonl").exists()
+    assert json.loads((store.session_dir / "session.json").read_text(encoding="utf-8"))["status"] == "running"
+    task_lines = (store.session_dir / "task_log.jsonl").read_text(encoding="utf-8").splitlines()
+    command_lines = (store.session_dir / "command_log.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(task_lines[0])["task_id"] == "task.write.readme"
+    assert json.loads(command_lines[0])["exit_code"] == 0
+
+
+def test_checkpoint_store_resumes_session_record(tmp_path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    store = SessionCheckpointStore(workspace, "session_000001")
+    record = AutonomousSessionRecord(
+        session_id="session_000001",
+        workspace_path=str(workspace),
+        organism_id="organism_000001",
+        product_name="Authentication Module",
+        status=AutonomousSessionStatus.COMPLETED,
+        max_runtime_seconds=28800,
+        generation_index=1,
+        checkpoint_dir=str(store.session_dir),
+        task_records=(
+            AutonomousTaskRecord(
+                task_id="task.write.readme",
+                operation=AutonomousOperation.WRITE_FILE,
+                state="completed",
+                reason="wrote README.md",
+                path="README.md",
+                outputs=("README.md",),
+            ),
+        ),
+        command_records=(
+            CommandRecord(
+                command="python -m pytest tests/test_autonomous_session.py",
+                exit_code=0,
+                stdout="1 passed",
+                stderr="",
+            ),
+        ),
+        commit_refs=("abc1234",),
+    )
+    store.write_checkpoint(record)
+
+    resumed = SessionCheckpointStore.load(store.session_dir / "session.json")
+
+    assert resumed.session_id == "session_000001"
+    assert resumed.status is AutonomousSessionStatus.COMPLETED
+    assert resumed.generation_index == 1
+    assert resumed.task_records == record.task_records
+    assert resumed.command_records == record.command_records
+    assert resumed.commit_refs == ("abc1234",)
 
 
 def _request_payload(tmp_path):
