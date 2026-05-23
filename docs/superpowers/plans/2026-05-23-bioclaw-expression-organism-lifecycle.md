@@ -112,7 +112,7 @@ git commit -m "Add product organism and translation cards"
 - Create: `tests/test_expression.py`
 - Create: `bioscaffold/expression.py`
 
-- [ ] **Step 1: Write failing expression tests**
+- [x] **Step 1: Write failing expression tests**
 
 Create `tests/test_expression.py`:
 
@@ -281,13 +281,13 @@ def test_expression_pipeline_closes_gene_to_artifact_turn():
     assert "protein.auth.password_policy.v1" in generation.promoted_structures
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_expression.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.expression'`.
 
-- [ ] **Step 3: Implement expression engine**
+- [x] **Step 3: Implement expression engine**
 
 Create `bioscaffold/expression.py`:
 
@@ -439,13 +439,13 @@ class ExpressionEngine:
         return ref.split(".", 1)[1] if "." in ref else ref
 ```
 
-- [ ] **Step 4: Run expression tests**
+- [x] **Step 4: Run expression tests**
 
 Run: `python -m pytest tests/test_expression.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_expression.py bioscaffold/expression.py
