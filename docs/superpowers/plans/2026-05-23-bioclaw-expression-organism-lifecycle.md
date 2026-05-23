@@ -28,17 +28,17 @@
 - Create: `bio_components/organism/product-organism.yaml`
 - Create: `bio_components/processes/translation.yaml`
 
-- [ ] **Step 1: Write the failing registry expectation**
+- [x] **Step 1: Write the failing registry expectation**
 
 Add `"product-organism"` and `"translation"` to the expected card-name set in `tests/test_component_cards.py`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_component_cards.py::test_all_repository_cards_are_valid -v`
 
 Expected: FAIL because `product-organism` and `translation` are missing.
 
-- [ ] **Step 3: Add cards**
+- [x] **Step 3: Add cards**
 
 Create `bio_components/organism/product-organism.yaml`:
 
@@ -93,13 +93,13 @@ bio_component:
   human_review_required: true
 ```
 
-- [ ] **Step 4: Run card tests**
+- [x] **Step 4: Run card tests**
 
 Run: `python -m pytest tests/test_component_cards.py tests/test_card_registry.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_component_cards.py bio_components/organism bio_components/processes/translation.yaml

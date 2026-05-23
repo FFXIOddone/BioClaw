@@ -1,0 +1,21 @@
+bio_component:
+  name: translation
+  scale: molecular
+  biological_role: Converts RNA instructions into protein products.
+  software_role: Converts spliced transcripts into artifact fragments.
+  implementation_status: planned
+  inputs: [spliced_transcript]
+  outputs: [protein_artifact]
+  internal_state:
+    source_transcript_ref: Spliced transcript being translated.
+  sensors: [translation_status]
+  control_rules: [Only spliced transcripts can be translated.]
+  repair_rules: [Invalid transcripts become failed tasks with evidence.]
+  recycle_rules: [Failed artifact fragments are archived.]
+  replication_rules: [Protein artifacts preserve transcript lineage.]
+  failure_modes: [unspliced transcript, missing lineage]
+  safety_limits:
+    direct_deployment: false
+  tests_required: [test_expression_pipeline_closes_gene_to_artifact_turn]
+  shutdown_condition: Artifact lineage cannot be traced to a transcript.
+  human_review_required: true

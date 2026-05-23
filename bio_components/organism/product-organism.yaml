@@ -1,0 +1,22 @@
+bio_component:
+  name: product-organism
+  scale: organism
+  biological_role: Represents the whole living system across birth, growth, and death.
+  software_role: Represents one active product from build start through delivery and archive.
+  implementation_status: planned
+  inputs: [reviewed_generation]
+  outputs: [delivered_product, archive_ref]
+  internal_state:
+    status: Planned, born, growing, delivered, archived, or quarantined.
+  sensors: [generation_count, stable_structure_count, quarantine_count]
+  control_rules: [Only reviewed generations can change organism growth state.]
+  repair_rules: [Quarantined growth blocks delivery until reviewed.]
+  recycle_rules: [Delivered products are archived before leaving active flow.]
+  replication_rules: [Only one active product organism is standard.]
+  failure_modes: [delivery with quarantined structures, archive before delivery]
+  safety_limits:
+    autonomous_deployment: false
+    multiple_active_organisms: false
+  tests_required: [test_product_organism_delivers_and_archives_reviewed_growth]
+  shutdown_condition: Product lifecycle state becomes contradictory.
+  human_review_required: true

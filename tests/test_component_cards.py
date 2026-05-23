@@ -90,9 +90,11 @@ def test_all_repository_cards_are_valid():
         "nucleus",
         "plasma-membrane",
         "plasmid",
+        "product-organism",
         "ribosome",
         "rna-transcript",
         "splicing",
         "transcription",
+        "translation",
     }
     assert all(card.human_review_required for card in registry)
