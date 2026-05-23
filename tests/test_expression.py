@@ -78,6 +78,94 @@ def test_expression_blocks_inactive_promoter():
     assert task.reason == "promoter promoter.auth.password_policy is not active"
 
 
+def test_expression_blocks_missing_gene_input():
+    task = ExpressionEngine().transcribe(
+        MoleculeRegistry(),
+        gene_ref="gene.missing",
+        promoter_ref="promoter.missing",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+
+    assert task.state is TaskState.BLOCKED
+    assert task.reason == "missing molecular input: gene.missing"
+
+
+def test_expression_blocks_missing_promoter_input():
+    registry = MoleculeRegistry()
+    registry.add(
+        MolecularStructure(
+            ref="gene.auth.password_policy",
+            molecule_type=MoleculeType.GENE,
+            content="Require password policy.",
+        )
+    )
+
+    task = ExpressionEngine().transcribe(
+        registry,
+        gene_ref="gene.auth.password_policy",
+        promoter_ref="promoter.missing",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+
+    assert task.state is TaskState.BLOCKED
+    assert task.reason == "missing molecular input: promoter.missing"
+
+
+def test_expression_fails_duplicate_transcript_ref_instead_of_crashing():
+    registry = seed_gene_and_promoter()
+    engine = ExpressionEngine()
+    first = engine.transcribe(
+        registry,
+        gene_ref="gene.auth.password_policy",
+        promoter_ref="promoter.auth.password_policy",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+    second = engine.transcribe(
+        registry,
+        gene_ref="gene.auth.password_policy",
+        promoter_ref="promoter.auth.password_policy",
+        turn_id="turn_000002",
+        generation_id="gen_000002",
+        organism_id="organism_000001",
+    )
+
+    assert first.state is TaskState.COMPLETE
+    assert second.state is TaskState.FAILED
+    assert second.reason == "duplicate molecular output: transcript.auth.password_policy.v1"
+
+
+def test_expression_blocks_missing_transcript_input():
+    task = ExpressionEngine().splice(
+        MoleculeRegistry(),
+        transcript_ref="transcript.missing",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+
+    assert task.state is TaskState.BLOCKED
+    assert task.reason == "missing molecular input: transcript.missing"
+
+
+def test_expression_blocks_missing_spliced_input():
+    task = ExpressionEngine().translate(
+        MoleculeRegistry(),
+        spliced_ref="spliced.missing",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+
+    assert task.state is TaskState.BLOCKED
+    assert task.reason == "missing molecular input: spliced.missing"
+
+
 def test_expression_splices_transcript_and_translates_artifact():
     registry = seed_gene_and_promoter()
     engine = ExpressionEngine()
