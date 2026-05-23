@@ -369,7 +369,8 @@ class SeedMicrotaskPlanner:
         _ = _repo_has_local_fact(workspace_path / "pyproject.toml")
 
         existing_gitignore = workspace_path / ".gitignore"
-        if _is_gitignore_ignoring_bioclaw(existing_gitignore):
+        seed_gitignore_entries = _seed_gitignore_entries(workspace_path)
+        if _is_gitignore_seed_ready(existing_gitignore, seed_gitignore_entries):
             return SeedGenerationPlan(
                 generation_index=generation_index,
                 project_tasks=(),
@@ -379,9 +380,9 @@ class SeedMicrotaskPlanner:
 
         if existing_gitignore.exists():
             current_gitignore = existing_gitignore.read_text(encoding="utf-8")
-            rewritten_gitignore = _append_bioclaw_to_gitignore(current_gitignore)
+            rewritten_gitignore = _append_seed_gitignore_entries(current_gitignore, seed_gitignore_entries)
         else:
-            rewritten_gitignore = ".bioclaw/\n"
+            rewritten_gitignore = _append_seed_gitignore_entries("", seed_gitignore_entries)
 
         tasks = (
             AutonomousWorkItem(
@@ -684,6 +685,8 @@ class AutonomousSessionController:
                 workspace_path,
                 request.session_id,
                 generation_index,
+                task_records,
+                request.allow_dirty_start,
                 command_records,
                 commit_refs,
             )
@@ -737,6 +740,8 @@ class AutonomousSessionController:
         workspace_path: Path,
         session_id: str,
         generation_index: int,
+        task_records: list[AutonomousTaskRecord],
+        allow_dirty_start: bool,
         command_records: list[CommandRecord],
         commit_refs: list[str],
     ) -> AutonomousSessionStatus:
@@ -758,25 +763,57 @@ class AutonomousSessionController:
             if unstage_bioclaw_record.exit_code != 0:
                 return AutonomousSessionStatus.BLOCKED
 
-        add_record = _run_shell("git add -A -- . :!.bioclaw", cwd=workspace_path)
+        committable_paths = _committable_task_paths(task_records)
+        dirty_paths = _status_paths_from_porcelain(status_record.stdout)
+        unexpected_dirty_paths = tuple(path for path in dirty_paths if path not in committable_paths)
+        if unexpected_dirty_paths and not allow_dirty_start:
+            command_records.append(
+                CommandRecord(
+                    command="commit gate",
+                    exit_code=1,
+                    stdout="",
+                    stderr="unexpected dirty paths outside completed write tasks: "
+                    + ", ".join(unexpected_dirty_paths),
+                )
+            )
+            return AutonomousSessionStatus.BLOCKED
+        if not committable_paths:
+            return AutonomousSessionStatus.COMPLETED
+
+        add_record = _run_git(workspace_path, "add", "--", *committable_paths)
         command_records.append(add_record)
         if add_record.exit_code != 0:
             return AutonomousSessionStatus.BLOCKED
 
-        staged_record = _run_shell("git diff --cached --name-only -- . :!.bioclaw", cwd=workspace_path)
+        staged_record = _run_git(workspace_path, "diff", "--cached", "--name-only", "--", ".", ":!.bioclaw")
         command_records.append(staged_record)
         if not staged_record.stdout.strip():
             return AutonomousSessionStatus.COMPLETED
+        staged_paths = tuple(line.strip() for line in staged_record.stdout.splitlines() if line.strip())
+        unexpected_staged_paths = tuple(path for path in staged_paths if path not in committable_paths)
+        if unexpected_staged_paths:
+            command_records.append(
+                CommandRecord(
+                    command="commit gate",
+                    exit_code=1,
+                    stdout="",
+                    stderr="unexpected staged paths outside completed write tasks: "
+                    + ", ".join(unexpected_staged_paths),
+                )
+            )
+            return AutonomousSessionStatus.BLOCKED
 
-        commit_record = _run_shell(
-            f'git commit -m "Autonomous session {session_id} generation {generation_index}"',
-            cwd=workspace_path,
+        commit_record = _run_git(
+            workspace_path,
+            "commit",
+            "-m",
+            f"Autonomous session {session_id} generation {generation_index}",
         )
         command_records.append(commit_record)
         if commit_record.exit_code != 0:
             return AutonomousSessionStatus.BLOCKED
 
-        rev_parse_record = _run_shell("git rev-parse HEAD", cwd=workspace_path)
+        rev_parse_record = _run_git(workspace_path, "rev-parse", "HEAD")
         command_records.append(rev_parse_record)
         if rev_parse_record.exit_code != 0:
             return AutonomousSessionStatus.BLOCKED
@@ -939,6 +976,53 @@ def _run_shell(command: str, *, cwd: Path) -> CommandRecord:
     )
 
 
+def _run_git(cwd: Path, *args: str) -> CommandRecord:
+    command = "git " + " ".join(args)
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        return CommandRecord(command=command, exit_code=127, stdout="", stderr=str(exc))
+    return CommandRecord(
+        command=command,
+        exit_code=completed.returncode,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
+
+
+def _committable_task_paths(task_records: list[AutonomousTaskRecord]) -> tuple[str, ...]:
+    paths: list[str] = []
+    for task_record in task_records:
+        if task_record.operation is not AutonomousOperation.WRITE_FILE:
+            continue
+        if task_record.state != "completed":
+            continue
+        path = task_record.path.replace("\\", "/").strip("/")
+        if not path or path.startswith(".bioclaw/") or path == ".bioclaw":
+            continue
+        paths.append(path)
+    return tuple(dict.fromkeys(paths))
+
+
+def _status_paths_from_porcelain(output: str) -> tuple[str, ...]:
+    paths: list[str] = []
+    for line in output.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:].strip()
+        if " -> " in path:
+            path = path.rsplit(" -> ", maxsplit=1)[1]
+        path = path.strip('"').replace("\\", "/")
+        if path:
+            paths.append(path)
+    return tuple(paths)
+
+
 _SECRET_HINTS = (
     "secret",
     "secrets",
@@ -1025,14 +1109,27 @@ def _seed_baseline_command(tests_path: Path) -> str:
     return 'python -c "print(\'no tests discovered\')"'
 
 
-def _is_gitignore_ignoring_bioclaw(path: Path) -> bool:
+def _seed_gitignore_entries(workspace_path: Path) -> tuple[str, ...]:
+    entries = [".bioclaw/"]
+    if (workspace_path / "tests").is_dir() or (workspace_path / "pyproject.toml").exists():
+        entries.extend(("__pycache__/", "*.py[cod]", ".pytest_cache/"))
+    return tuple(entries)
+
+
+def _is_gitignore_seed_ready(path: Path, required_entries: tuple[str, ...]) -> bool:
     if not path.exists():
         return False
     current = path.read_text(encoding="utf-8")
-    return any(line.strip() == ".bioclaw/" for line in current.splitlines())
+    existing_entries = {line.strip() for line in current.splitlines()}
+    return all(entry in existing_entries for entry in required_entries)
 
 
-def _append_bioclaw_to_gitignore(content: str) -> str:
-    if not content.endswith("\n"):
-        return content + "\n.bioclaw/\n"
-    return content + ".bioclaw/\n"
+def _append_seed_gitignore_entries(content: str, required_entries: tuple[str, ...]) -> str:
+    rewritten = content
+    if rewritten and not rewritten.endswith("\n"):
+        rewritten += "\n"
+    existing_entries = {line.strip() for line in rewritten.splitlines()}
+    for entry in required_entries:
+        if entry not in existing_entries:
+            rewritten += f"{entry}\n"
+    return rewritten

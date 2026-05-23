@@ -310,6 +310,45 @@ def test_seed_autonomous_controller_writes_seed_summary_and_stops_on_terminal_pl
     assert payload["generations"][0]["inner_checkpoint_path"] == record.generations[0].inner_checkpoint_path
 
 
+def test_seed_autonomous_controller_does_not_commit_or_leave_pytest_artifacts(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    (workspace / "tests").mkdir()
+    (workspace / "tests" / "test_smoke.py").write_text(
+        "def test_smoke():\n    assert True\n",
+        encoding="utf-8",
+    )
+    _git(workspace, "add", "tests/test_smoke.py")
+    _git(workspace, "commit", "-m", "Baseline test suite")
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "generation_limit": 3,
+        }
+    )
+
+    record = SeedAutonomousController().run(request)
+
+    assert record.status is SeedGenerationStatus.COMPLETED
+    committed_files = _git(workspace, "show", "--name-only", "--format=", "HEAD").stdout.splitlines()
+    assert committed_files == [".gitignore"]
+    dirty_after_seed = _git(
+        workspace,
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        ".",
+        ":!.bioclaw",
+    ).stdout
+    assert dirty_after_seed == ""
+
+
 def test_seed_autonomous_controller_limits_out_when_no_generation_capacity(tmp_path):
     workspace = tmp_path / "repo"
     workspace.mkdir()
