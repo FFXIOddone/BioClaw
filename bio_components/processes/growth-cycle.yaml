@@ -1,0 +1,23 @@
+bio_component:
+  name: growth-cycle
+  scale: organism
+  biological_role: Coordinates repeated biological processes that produce stable growth.
+  software_role: Runs one deterministic product growth cycle from gene expression through generation review and organism integration.
+  implementation_status: planned
+  inputs: [product_organism, molecule_registry, gene, promoter, pathogen_fixtures]
+  outputs: [closed_turn, reviewed_generation, updated_product_organism]
+  internal_state:
+    cycle_refs: Turn, generation, and organism identifiers for one synchronized cycle.
+  sensors: [terminal_task_count, immune_event_count, quarantined_structure_count]
+  control_rules: [A growth cycle must close the turn before reviewing the generation.]
+  repair_rules: [Blocked expression remains terminal evidence for the next cycle.]
+  recycle_rules: [Quarantined fixtures are preserved for immune memory and later archive.]
+  replication_rules: [Growth cycles do not create additional active organisms.]
+  failure_modes: [open turn reviewed, pathogen promoted as stable growth, cross-organism generation]
+  safety_limits:
+    autonomous_deployment: false
+    live_malware: false
+    multiple_active_organisms: false
+  tests_required: [test_growth_cycle_injects_bacteria_and_quarantines_with_immune_memory]
+  shutdown_condition: Growth cycle cannot produce a closed turn.
+  human_review_required: true
