@@ -1,6 +1,7 @@
+from bioscaffold.cell import BioCell
 from bioscaffold.checkpoints import CheckpointSuite
 from bioscaffold.lifecycle import LifecyclePolicy
-from bioscaffold.types import BudgetReport, LifecyclePhase
+from bioscaffold.types import BudgetReport, CellRole, LifecyclePhase
 
 
 def test_lifecycle_policy_allows_ordered_growth_path():
@@ -45,3 +46,25 @@ def test_checkpoint_suite_rejects_low_health():
 
     assert result.passed is False
     assert result.reason == "health score below threshold"
+
+
+def test_biocell_executes_echo_job_with_audit():
+    cell = BioCell.bootstrap(role=CellRole.WORKER)
+
+    result = cell.run_job({"job_id": "job_000001", "type": "echo", "value": "done"})
+
+    assert result.succeeded is True
+    assert result.output == {"result": "done"}
+    assert [event.event_type for event in cell.audit_events] == [
+        "cell_bootstrapped",
+        "job_completed",
+    ]
+
+
+def test_biocell_rejects_invalid_input_at_membrane():
+    cell = BioCell.bootstrap(role=CellRole.WORKER)
+
+    result = cell.run_job({"job_id": "job_000001", "type": "echo", "value": "done", "extra": True})
+
+    assert result.succeeded is False
+    assert result.reason == "unknown input keys: extra"
