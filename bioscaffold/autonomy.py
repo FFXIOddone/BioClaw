@@ -596,6 +596,10 @@ def _biological_fleet_from_payload(raw: Any) -> tuple[BiologicalFleetUnit, ...]:
     return tuple(BiologicalFleetUnit.from_payload(item) for item in raw)
 
 
+def default_biological_fleet() -> tuple[BiologicalFleetUnit, ...]:
+    return _default_biological_fleet()
+
+
 def _default_biological_fleet() -> tuple[BiologicalFleetUnit, ...]:
     return (
         BiologicalFleetUnit(
