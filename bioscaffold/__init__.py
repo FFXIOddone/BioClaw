@@ -7,6 +7,19 @@ from bioscaffold.assembly import ProductAssemblyEngine, ProductAssemblyResult
 from bioscaffold.cell import BioCell
 from bioscaffold.compiler import CompiledProductGenome, ProductGenomeCompiler, ProductRequirement
 from bioscaffold.delivery import DeliveryPackager, DeliveryReport
+from bioscaffold.autonomy import (
+    AutonomousOperation,
+    AutonomousPolicy,
+    AutonomousSessionController,
+    AutonomousSessionRecord,
+    AutonomousSessionRequest,
+    AutonomousSessionStatus,
+    AutonomousTaskRecord,
+    AutonomousWorkItem,
+    CommandRecord,
+    LocalAutonomousExecutor,
+    SessionCheckpointStore,
+)
 from bioscaffold.expression import ExpressionEngine
 from bioscaffold.generations import Generation, GenerationEngine
 from bioscaffold.growth import GrowthCycleResult, GrowthCycleRunner
@@ -30,6 +43,17 @@ from bioscaffold.workflow import (
 __all__ = [
     "ActiveOrganismRegistry",
     "AgentHat",
+    "AutonomousOperation",
+    "AutonomousPolicy",
+    "AutonomousSessionController",
+    "AutonomousSessionRecord",
+    "AutonomousSessionRequest",
+    "AutonomousSessionStatus",
+    "AutonomousTaskRecord",
+    "AutonomousWorkItem",
+    "CommandRecord",
+    "LocalAutonomousExecutor",
+    "SessionCheckpointStore",
     "AllGenerationProductRunner",
     "AllGenerationWorkflowResult",
     "ArtifactValidationEngine",
