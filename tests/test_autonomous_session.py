@@ -1,5 +1,6 @@
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -401,6 +402,41 @@ def test_autonomous_session_denies_verification_git_commit_and_does_not_commit(t
     assert record.commit_refs == ()
     assert any(command.command == "git commit --allow-empty -m verify-bypass" for command in record.command_records)
     assert _git(workspace, "rev-parse", "--verify", "HEAD", check=False).returncode != 0
+
+
+def test_autonomous_session_records_timeout_before_work(tmp_path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "max_runtime_seconds": 0,
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.TIMEOUT
+    assert (workspace / ".bioclaw" / "sessions" / "session_000001" / "session.json").exists()
+
+
+def test_autonomous_session_resume_returns_saved_record(tmp_path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "verification_commands": [],
+        }
+    )
+    original = AutonomousSessionController().run(request)
+
+    resumed = AutonomousSessionController().resume(Path(original.checkpoint_dir) / "session.json")
+
+    assert resumed.session_id == original.session_id
+    assert resumed.status is AutonomousSessionStatus.COMPLETED
 
 
 def init_git_repo(workspace):
