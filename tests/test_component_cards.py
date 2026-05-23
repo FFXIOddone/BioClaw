@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from bioscaffold.cards import load_registry
 from bioscaffold.types import (
     BudgetReport,
     CellIdentity,
@@ -46,3 +49,25 @@ def test_policy_decision_denial_has_reason():
 
     assert decision.allowed is False
     assert decision.reason == "outside membrane policy"
+
+
+def test_all_repository_cards_are_valid():
+    registry = load_registry(Path("bio_components"))
+
+    names = {card.name for card in registry}
+
+    assert names == {
+        "apoptosis",
+        "autophagy",
+        "cytoskeleton",
+        "endoplasmic-reticulum",
+        "golgi-apparatus",
+        "lysosome",
+        "meiosis",
+        "mitochondria",
+        "mitosis",
+        "nucleus",
+        "plasma-membrane",
+        "ribosome",
+    }
+    assert all(card.human_review_required for card in registry)

@@ -1,0 +1,21 @@
+bio_component:
+  name: cytoskeleton
+  scale: organelle
+  biological_role: Provides internal structure, organization, and transport routes.
+  software_role: Dependency and routing graph for cell services.
+  implementation_status: planned
+  inputs: [route_registration, dependency_registration]
+  outputs: [route_map, dependency_graph]
+  internal_state:
+    graph: Service topology.
+  sensors: [orphan_route_count, cycle_count]
+  control_rules: [reject duplicate route names, preserve lineage route]
+  repair_rules: [remove orphan routes during autophagy dry run]
+  recycle_rules: [send stale route records to lysosome]
+  replication_rules: [child receives copied graph with new identity route]
+  failure_modes: [orphan state, circular unsafe route]
+  safety_limits:
+    external_route_creation: false
+  tests_required: [test_cytoskeleton_rejects_duplicate_route]
+  shutdown_condition: Impossible service topology.
+  human_review_required: true

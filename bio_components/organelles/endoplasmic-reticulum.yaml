@@ -1,0 +1,21 @@
+bio_component:
+  name: endoplasmic-reticulum
+  scale: organelle
+  biological_role: Synthesizes and routes proteins and lipids for destinations in and outside the cell.
+  software_role: Build pipeline for prepare, validate, stage, and route outputs.
+  implementation_status: planned
+  inputs: [raw_output, destination_policy]
+  outputs: [staged_payload, routing_decision]
+  internal_state:
+    staging_area: Prepared but unreleased payloads.
+  sensors: [validation_status, routing_status]
+  control_rules: [stage before export, reject payloads without destination labels]
+  repair_rules: [return payload to ribosome on validation failure]
+  recycle_rules: [send invalid staged payloads to lysosome]
+  replication_rules: [not active in MVP mitosis beyond config inheritance]
+  failure_modes: [routes unlabeled payload, releases invalid payload]
+  safety_limits:
+    production_export: false
+  tests_required: [test_er_requires_destination_label]
+  shutdown_condition: Repeated invalid routing.
+  human_review_required: true

@@ -1,0 +1,22 @@
+bio_component:
+  name: meiosis
+  scale: cell
+  biological_role: Recombines inherited material to produce reproductive cells.
+  software_role: Sandbox variant generation from approved parent designs.
+  implementation_status: planned
+  inputs: [parent_design_a, parent_design_b, evaluator_policy]
+  outputs: [variant_proposal, variant_score]
+  internal_state:
+    variant_arena: Isolated evaluation environment.
+  sensors: [variant_score, safety_violation_count]
+  control_rules: [no production access, generate proposal only]
+  repair_rules: [archive failed variant for analysis]
+  recycle_rules: [send losing variants to lysosome]
+  replication_rules: [variant is not promoted without human review]
+  failure_modes: [variant bypasses sandbox, variant mutates permissions]
+  safety_limits:
+    production_access: false
+    promotion_requires_human_review: true
+  tests_required: [test_meiosis_creates_proposal_only]
+  shutdown_condition: Variant sandbox escape attempt.
+  human_review_required: true

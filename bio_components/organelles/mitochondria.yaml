@@ -1,0 +1,24 @@
+bio_component:
+  name: mitochondria
+  scale: organelle
+  biological_role: Generates usable energy and carries independent mitochondrial DNA.
+  software_role: Resource budget manager for runtime, memory, tokens, API cost, and priority energy.
+  implementation_status: planned
+  inputs: [budget_request]
+  outputs: [budget_reservation, budget_report]
+  internal_state:
+    remaining_budget: Runtime, memory, tokens, and cost still available.
+  sensors: [runtime_remaining, memory_remaining, token_remaining, cost_remaining]
+  control_rules: [deny over-budget request, release unused reservation]
+  repair_rules: [reset to last valid budget snapshot]
+  recycle_rules: [reclaim reservations from dead cells]
+  replication_rules: [child receives reduced budget]
+  failure_modes: [over-allocation, negative budget, unaudited budget change]
+  safety_limits:
+    max_runtime_seconds: 30
+    max_memory_mb: 256
+    max_tokens: 0
+    max_api_cost_usd: 0
+  tests_required: [test_budget_denies_over_request, test_child_budget_is_reduced]
+  shutdown_condition: Budget ledger corruption.
+  human_review_required: true

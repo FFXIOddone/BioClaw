@@ -1,0 +1,25 @@
+bio_component:
+  name: nucleus
+  scale: organelle
+  biological_role: Houses the genome and coordinates replication, transcription, and RNA processing.
+  software_role: Governance kernel for identity, permissions, lifecycle, and policy decisions.
+  implementation_status: planned
+  inputs: [cell_state, genome_config, sensor_events, checkpoint_results]
+  outputs: [policy_decision, lifecycle_decision, audit_event]
+  internal_state:
+    identity: Stable cell id and lineage metadata.
+    permissions: Allowed tools, paths, network access, and mutation capabilities.
+    lifecycle_phase: Current lifecycle phase.
+  sensors: [health_score, budget_remaining, checkpoint_status, anomaly_count]
+  control_rules: [reject actions outside membrane policy, require checkpoint pass before reproduction]
+  repair_rules: [reload last valid genome snapshot, quarantine inconsistent policy state]
+  recycle_rules: [forward stale policy proposals to lysosome]
+  replication_rules: [allow mitosis only from validated snapshot, assign child reduced permissions]
+  failure_modes: [permission escalation, lost lineage, invalid genome accepted]
+  safety_limits:
+    production_access: false
+    audit_log_mutation: false
+    max_children_per_cycle: 1
+  tests_required: [test_rejects_permission_escalation, test_requires_checkpoint_before_mitosis]
+  shutdown_condition: Policy corruption or repeated checkpoint bypass attempt.
+  human_review_required: true

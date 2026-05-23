@@ -1,0 +1,21 @@
+bio_component:
+  name: apoptosis
+  scale: cell
+  biological_role: Programmed cell death removes unnecessary or harmful cells.
+  software_role: Kill switch for unsafe, useless, corrupted, or over-budget modules.
+  implementation_status: planned
+  inputs: [shutdown_reason, cell_state, audit_ledger]
+  outputs: [apoptosis_event, archived_state]
+  internal_state:
+    inactive: Whether the cell has stopped accepting work.
+  sensors: [policy_violation_count, health_score, budget_remaining]
+  control_rules: [stop new work, archive state, release budget]
+  repair_rules: [prefer quarantine when evidence should be preserved]
+  recycle_rules: [send dead cell scratch state to lysosome]
+  replication_rules: [apoptotic cells cannot reproduce]
+  failure_modes: [continues work after shutdown, loses shutdown reason]
+  safety_limits:
+    accepts_new_work_after_shutdown: false
+  tests_required: [test_apoptosis_stops_new_work, test_apoptosis_records_reason]
+  shutdown_condition: Completion of apoptosis protocol.
+  human_review_required: true
