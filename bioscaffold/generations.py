@@ -64,7 +64,7 @@ class GenerationEngine:
         try:
             structure = registry.get(ref)
         except KeyError:
-            return True
+            return False
         if structure.molecule_type in {MoleculeType.PLASMID, MoleculeType.ANTIGEN}:
             return False
         if "pathogen_fixture" in structure.markers:

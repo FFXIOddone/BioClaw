@@ -76,6 +76,7 @@ class GrowthCycleRunner:
                 )
 
         inspector = immune_system or ImmuneSystem.from_registry(registry)
+        inspected_refs: set[str] = set()
         for fixture in pathogen_fixtures:
             injection_task = fixture.inject(
                 registry,
@@ -85,6 +86,7 @@ class GrowthCycleRunner:
             )
             tasks.append(injection_task)
             if injection_task.outputs:
+                inspected_refs.add(injection_task.outputs[0])
                 immune_task, event = inspector.inspect(
                     registry,
                     target_ref=injection_task.outputs[0],
@@ -94,6 +96,24 @@ class GrowthCycleRunner:
                 )
                 tasks.append(immune_task)
                 immune_events.append(event)
+
+        for target_ref in self._completed_output_refs(tasks):
+            if target_ref in inspected_refs:
+                continue
+            try:
+                registry.get(target_ref)
+            except KeyError:
+                continue
+            inspected_refs.add(target_ref)
+            immune_task, event = inspector.inspect(
+                registry,
+                target_ref=target_ref,
+                turn_id=turn_id,
+                generation_id=generation_id,
+                organism_id=organism.organism_id,
+            )
+            tasks.append(immune_task)
+            immune_events.append(event)
 
         turn = self.turn_engine.close(
             Turn(
@@ -119,3 +139,11 @@ class GrowthCycleRunner:
             organism=organism.integrate_generation(generation),
             immune_events=tuple(immune_events),
         )
+
+    def _completed_output_refs(self, tasks: list[MicroTask]) -> tuple[str, ...]:
+        refs = []
+        for task in tuple(tasks):
+            if task.state is not TaskState.COMPLETE:
+                continue
+            refs.extend(task.outputs)
+        return tuple(dict.fromkeys(refs))
