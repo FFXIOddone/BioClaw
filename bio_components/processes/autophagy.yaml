@@ -1,0 +1,21 @@
+bio_component:
+  name: autophagy
+  scale: cell
+  biological_role: Recycles damaged organelles and cellular components to maintain homeostasis.
+  software_role: Self-maintenance loop for pruning, compressing, archiving, and reclaiming.
+  implementation_status: planned
+  inputs: [waste_queue, retention_policy, audit_events]
+  outputs: [recycle_result, archive_refs]
+  internal_state:
+    dry_run_enabled: Whether cleanup is simulated only.
+  sensors: [stale_item_count, reclaimable_item_count]
+  control_rules: [dry-run before destructive cleanup, preserve audit records]
+  repair_rules: [restore archived item when cleanup is rejected]
+  recycle_rules: [classify stale material, archive material, report reclaimed value]
+  replication_rules: [not a reproduction mechanism]
+  failure_modes: [cleanup deletes useful information]
+  safety_limits:
+    destructive_delete: false
+  tests_required: [test_autophagy_dry_run_preserves_items]
+  shutdown_condition: Attempted cleanup of active genome or audit ledger.
+  human_review_required: true

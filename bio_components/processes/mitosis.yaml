@@ -1,0 +1,22 @@
+bio_component:
+  name: mitosis
+  scale: cell
+  biological_role: Produces two daughter cells after DNA replication and cell division.
+  software_role: Controlled cloning of a validated cell into a sandboxed child.
+  implementation_status: planned
+  inputs: [parent_cell, checkpoint_result, snapshot_ref]
+  outputs: [child_cell, lineage_audit_event]
+  internal_state:
+    clone_counter: Number of children created in current cycle.
+  sensors: [parent_health_score, checkpoint_status, budget_remaining]
+  control_rules: [require G2 phase, require checkpoint pass, restrict child permissions]
+  repair_rules: [destroy incomplete child state on failure]
+  recycle_rules: [archive failed clone snapshot]
+  replication_rules: [one child per cycle, child receives new identity]
+  failure_modes: [unbounded replication, permission widening, orphan child state]
+  safety_limits:
+    max_children_per_cycle: 1
+    production_access: false
+  tests_required: [test_mitosis_requires_checkpoint_pass, test_child_permissions_are_restricted]
+  shutdown_condition: Unbounded clone attempt.
+  human_review_required: true

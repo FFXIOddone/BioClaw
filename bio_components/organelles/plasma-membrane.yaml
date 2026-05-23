@@ -1,0 +1,22 @@
+bio_component:
+  name: plasma-membrane
+  scale: organelle
+  biological_role: Maintains a selective boundary between inside and outside the cell.
+  software_role: API boundary for validation, authorization, and rate limits.
+  implementation_status: planned
+  inputs: [external_payload, output_payload, action_plan]
+  outputs: [validation_result, policy_decision]
+  internal_state:
+    allowed_payload_keys: Input and output keys allowed through the boundary.
+  sensors: [invalid_input_count, invalid_output_count]
+  control_rules: [reject unknown input keys, reject unknown output keys]
+  repair_rules: [return validation reason without side effects]
+  recycle_rules: [send rejected payload summaries to lysosome]
+  replication_rules: [child inherits equal or stricter membrane rules]
+  failure_modes: [accepts unsafe payload, leaks invalid output]
+  safety_limits:
+    unknown_key_policy: reject
+    production_access: false
+  tests_required: [test_membrane_rejects_unknown_input]
+  shutdown_condition: Boundary bypass attempt.
+  human_review_required: true

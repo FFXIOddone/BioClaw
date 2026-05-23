@@ -1,0 +1,22 @@
+bio_component:
+  name: ribosome
+  scale: organelle
+  biological_role: Synthesizes proteins from translated instructions.
+  software_role: Deterministic job executor for approved fake jobs.
+  implementation_status: planned
+  inputs: [job, genome_instruction, budget_reservation]
+  outputs: [job_result, audit_event]
+  internal_state:
+    executor_id: Stable executor identity.
+  sensors: [job_queue_depth, last_result_status]
+  control_rules: [execute only authorized jobs, reject jobs without budget reservation]
+  repair_rules: [return failed job result with reason]
+  recycle_rules: [send failed job outputs to lysosome]
+  replication_rules: [inherits executor policy from approved genome]
+  failure_modes: [executes unauthorized job, returns unaudited output]
+  safety_limits:
+    external_process_execution: false
+    production_access: false
+  tests_required: [test_ribosome_rejects_unauthorized_job, test_ribosome_records_result]
+  shutdown_condition: Unauthorized execution attempt.
+  human_review_required: true

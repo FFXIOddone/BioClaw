@@ -1,0 +1,21 @@
+bio_component:
+  name: golgi-apparatus
+  scale: organelle
+  biological_role: Processes, labels, packages, and exports materials from the ER.
+  software_role: Packaging and release manager for validated outputs.
+  implementation_status: planned
+  inputs: [staged_payload, label_policy]
+  outputs: [packaged_payload, release_record]
+  internal_state:
+    package_counter: Count of packaged payloads.
+  sensors: [package_validity, release_queue_depth]
+  control_rules: [label every package, reject production release in sandbox]
+  repair_rules: [relabel malformed package]
+  recycle_rules: [archive rejected package]
+  replication_rules: [inherits packaging policy from genome]
+  failure_modes: [unlabeled export, release without audit]
+  safety_limits:
+    production_release: false
+  tests_required: [test_golgi_rejects_unlabeled_export]
+  shutdown_condition: Unauthorized release attempt.
+  human_review_required: true

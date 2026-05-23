@@ -1,0 +1,22 @@
+bio_component:
+  name: lysosome
+  scale: organelle
+  biological_role: Degrades and recycles cellular waste.
+  software_role: Cleanup manager for stale jobs, failed outputs, old logs, and unused fragments.
+  implementation_status: planned
+  inputs: [waste_item, retention_policy]
+  outputs: [archive_ref, recycle_receipt]
+  internal_state:
+    archive_index: Records of retained cleanup material.
+  sensors: [waste_count, reclaimed_count]
+  control_rules: [snapshot before cleanup, preserve audit records]
+  repair_rules: [restore item from archive reference]
+  recycle_rules: [classify, archive, reclaim]
+  replication_rules: [child starts with empty waste queue]
+  failure_modes: [deletes useful data, loses retention metadata]
+  safety_limits:
+    destructive_delete: false
+    require_archive_before_reclaim: true
+  tests_required: [test_lysosome_archives_before_reclaim]
+  shutdown_condition: Cleanup without archive evidence.
+  human_review_required: true
