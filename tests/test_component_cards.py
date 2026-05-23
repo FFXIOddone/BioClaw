@@ -22,6 +22,8 @@ def test_package_imports():
         "AutonomousSessionRecord",
         "AutonomousSessionRequest",
         "AutonomousSessionStatus",
+        "BiologicalFleetActionRecord",
+        "BiologicalFleetUnit",
         "SeedAutonomousController",
         "SeedAutonomousRecord",
         "SeedAutonomousRequest",

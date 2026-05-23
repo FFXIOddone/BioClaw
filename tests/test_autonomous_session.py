@@ -80,6 +80,55 @@ def test_seed_autonomous_request_defaults_to_expected_values(tmp_path):
     assert request.verification_commands == ()
 
 
+def test_seed_autonomous_request_defaults_to_whole_system_fleet(tmp_path):
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(tmp_path),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        }
+    )
+
+    manifest = request.structure_fleet
+    assert request.enable_structure_fleet is True
+    assert len(manifest) >= 11
+    assert {unit.structure_type for unit in manifest} >= {
+        "dna",
+        "rna",
+        "protein",
+        "membrane",
+        "mitochondria",
+        "bacteria",
+        "white_blood_cell",
+        "tissue",
+        "organ",
+        "organism",
+        "generation_reviewer",
+    }
+    assert all(unit.exec_slot >= 1 for unit in manifest)
+    assert all(unit.mechanical_function for unit in manifest)
+
+
+def test_seed_autonomous_request_can_disable_structure_fleet(tmp_path):
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(tmp_path),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "enable_structure_fleet": False,
+        }
+    )
+
+    assert request.enable_structure_fleet is False
+    assert request.structure_fleet
+    plan = SeedMicrotaskPlanner().plan_generation(request, generation_index=1)
+    assert plan.fleet_actions == ()
+
+
 def test_seed_planner_writes_gitignore_when_missing(tmp_path):
     workspace = tmp_path / "repo"
     workspace.mkdir()
@@ -428,7 +477,194 @@ def test_seed_autonomous_controller_resumes_existing_seed_summary_for_generation
     assert payload["status"] == SeedGenerationStatus.PAUSED.value
     assert payload["resume_existing_seed"] is True
     assert payload["generation_batch_size"] == 1
+    assert payload["enable_structure_fleet"] is True
+    assert len(payload["structure_fleet"]) >= 11
     assert [generation["generation_index"] for generation in payload["generations"]] == [1, 2]
+    assert all(len(generation["fleet_actions"]) >= 11 for generation in payload["generations"])
+
+    resumed_record = SeedAutonomousController(
+        session_controller=session_controller,
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    ).run(SeedAutonomousRequest.from_payload(request_payload))
+    assert [generation.generation_index for generation in resumed_record.generations] == [1, 2, 3]
+    assert all(len(generation.fleet_actions) >= 11 for generation in resumed_record.generations)
+
+
+def test_seed_autonomous_controller_rejects_changed_fleet_manifest_on_resume(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    clock = FakeClock()
+    session_controller = AdvancingCompletedSessionController(clock=clock, seconds_per_run=1.0)
+    request_payload = {
+        "session_id": "seed_session_000001",
+        "workspace_path": str(workspace),
+        "organism_id": "organism_seed",
+        "product_name": "Seed Baseline",
+        "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        "resume_existing_seed": True,
+        "generation_batch_size": 1,
+        "generation_limit": 4,
+        "allow_dirty_start": True,
+    }
+    controller = SeedAutonomousController(
+        session_controller=session_controller,
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    )
+
+    first_record = controller.run(SeedAutonomousRequest.from_payload(request_payload))
+    assert first_record.status is SeedGenerationStatus.PAUSED
+
+    changed_fleet_payload = {
+        **request_payload,
+        "structure_fleet": [
+            {
+                "unit_id": "fleet.only_dna",
+                "structure_type": "dna",
+                "biological_action": "store instructions",
+                "mechanical_function": "preserve only the seed goal",
+                "exec_slot": 1,
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="structure_fleet"):
+        controller.run(SeedAutonomousRequest.from_payload(changed_fleet_payload))
+
+
+def test_seed_autonomous_controller_resumes_disabled_fleet_manifest(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    clock = FakeClock()
+    session_controller = AdvancingCompletedSessionController(clock=clock, seconds_per_run=1.0)
+    request_payload = {
+        "session_id": "seed_session_000001",
+        "workspace_path": str(workspace),
+        "organism_id": "organism_seed",
+        "product_name": "Seed Baseline",
+        "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        "resume_existing_seed": True,
+        "generation_batch_size": 1,
+        "generation_limit": 4,
+        "allow_dirty_start": True,
+        "enable_structure_fleet": False,
+    }
+    controller = SeedAutonomousController(
+        session_controller=session_controller,
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    )
+
+    controller.run(SeedAutonomousRequest.from_payload(request_payload))
+    resumed_record = controller.run(SeedAutonomousRequest.from_payload(request_payload))
+
+    assert resumed_record.status is SeedGenerationStatus.PAUSED
+    assert [generation.generation_index for generation in resumed_record.generations] == [1, 2]
+    assert all(generation.fleet_actions == () for generation in resumed_record.generations)
+    summary_path = workspace / ".bioclaw" / "seeds" / "seed_session_000001" / "seed-session.json"
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert payload["enable_structure_fleet"] is False
+    assert payload["structure_fleet"]
+
+
+def test_seed_autonomous_controller_resumes_legacy_summary_with_default_fleet(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    summary_dir = workspace / ".bioclaw" / "seeds" / "seed_session_000001"
+    summary_dir.mkdir(parents=True)
+    (summary_dir / "seed-session.json").write_text(
+        json.dumps(
+            {
+                "session_id": "seed_session_000001",
+                "workspace_path": str(workspace),
+                "organism_id": "organism_seed",
+                "product_name": "Seed Baseline",
+                "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+                "status": SeedGenerationStatus.PAUSED.value,
+                "generation_limit": 4,
+                "max_runtime_seconds": 28800,
+                "resume_existing_seed": True,
+                "generation_batch_size": 1,
+                "generations": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    clock = FakeClock()
+    session_controller = AdvancingCompletedSessionController(clock=clock, seconds_per_run=1.0)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "resume_existing_seed": True,
+            "generation_batch_size": 1,
+            "generation_limit": 4,
+            "allow_dirty_start": True,
+        }
+    )
+
+    record = SeedAutonomousController(
+        session_controller=session_controller,
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    ).run(request)
+
+    assert record.status is SeedGenerationStatus.PAUSED
+    assert len(record.structure_fleet) >= 11
+    assert len(record.generations[0].fleet_actions) == len(record.structure_fleet)
+
+
+def test_seed_generation_records_whole_system_fleet_actions(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    (workspace / ".gitignore").write_text(".bioclaw/\n", encoding="utf-8")
+    _git(workspace, "add", ".gitignore")
+    _git(workspace, "commit", "-m", "Baseline ignored checkpoints")
+    clock = FakeClock()
+    session_controller = AdvancingCompletedSessionController(clock=clock, seconds_per_run=1.0)
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": ("python -c \"print('verify')\"",),
+            "resume_existing_seed": True,
+            "generation_batch_size": 1,
+            "run_until_runtime_exhausted": True,
+            "allow_dirty_start": True,
+        }
+    )
+
+    record = SeedAutonomousController(
+        session_controller=session_controller,
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    ).run(request)
+
+    generation = record.generations[0]
+    assert len(generation.fleet_actions) == len(request.structure_fleet)
+    assert {action.structure_type for action in generation.fleet_actions} >= {
+        "dna",
+        "rna",
+        "bacteria",
+        "white_blood_cell",
+        "organism",
+    }
+    assert all(action.status == "planned" for action in generation.fleet_actions)
+    payload = json.loads(
+        (workspace / ".bioclaw" / "seeds" / request.session_id / "seed-session.json").read_text(encoding="utf-8")
+    )
+    assert len(payload["generations"][0]["fleet_actions"]) == len(request.structure_fleet)
 
 
 def test_seed_autonomous_controller_does_not_commit_or_leave_pytest_artifacts(tmp_path):
