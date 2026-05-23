@@ -331,6 +331,18 @@ class LocalAutonomousExecutor:
 
 
 class AutonomousSessionController:
+    def _git_status_without_bioclaw(self, workspace_path: Path) -> CommandRecord:
+        return _run_shell("git status --porcelain --untracked-files=all -- . :!.bioclaw", cwd=workspace_path)
+
+    def _check_clean_start(self, workspace_path: Path, command_records: list[CommandRecord]) -> AutonomousSessionStatus:
+        status_record = self._git_status_without_bioclaw(workspace_path)
+        command_records.append(status_record)
+        if status_record.exit_code != 0:
+            return AutonomousSessionStatus.BLOCKED
+        if status_record.stdout.strip():
+            return AutonomousSessionStatus.BLOCKED
+        return AutonomousSessionStatus.COMPLETED
+
     def run(self, request: AutonomousSessionRequest) -> AutonomousSessionRecord:
         workspace_path = request.workspace_path.resolve()
         generation_index = 1
@@ -347,7 +359,12 @@ class AutonomousSessionController:
         commit_refs: list[str] = []
         status = AutonomousSessionStatus.COMPLETED
 
+        if status is AutonomousSessionStatus.COMPLETED and not request.allow_dirty_start:
+            status = self._check_clean_start(workspace_path, command_records)
+
         for item in request.project_tasks:
+            if status is not AutonomousSessionStatus.COMPLETED:
+                break
             if request.max_runtime_seconds <= 0 or time.monotonic() - started_at >= request.max_runtime_seconds:
                 status = AutonomousSessionStatus.TIMEOUT
                 break
@@ -426,17 +443,22 @@ class AutonomousSessionController:
         command_records: list[CommandRecord],
         commit_refs: list[str],
     ) -> AutonomousSessionStatus:
-        status_record = _run_shell("git status --porcelain", cwd=workspace_path)
+        status_record = self._git_status_without_bioclaw(workspace_path)
         command_records.append(status_record)
         if status_record.exit_code != 0:
             return AutonomousSessionStatus.BLOCKED
         if not status_record.stdout.strip():
             return AutonomousSessionStatus.COMPLETED
 
-        add_record = _run_shell("git add -A", cwd=workspace_path)
+        add_record = _run_shell("git add -A -- . :!.bioclaw", cwd=workspace_path)
         command_records.append(add_record)
         if add_record.exit_code != 0:
             return AutonomousSessionStatus.BLOCKED
+
+        staged_record = _run_shell("git diff --cached --name-only -- . :!.bioclaw", cwd=workspace_path)
+        command_records.append(staged_record)
+        if not staged_record.stdout.strip():
+            return AutonomousSessionStatus.COMPLETED
 
         commit_record = _run_shell(
             f'git commit -m "Autonomous session {session_id} generation {generation_index}"',

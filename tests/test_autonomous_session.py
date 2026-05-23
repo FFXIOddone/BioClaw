@@ -444,6 +444,46 @@ def test_autonomous_session_writes_file_verifies_and_commits_generation(tmp_path
     assert (workspace / ".bioclaw" / "sessions" / "session_000001" / "session.json").exists()
 
 
+def test_autonomous_session_blocks_dirty_start_when_not_allowed(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    (workspace / "unrelated.txt").write_text("dirty\n", encoding="utf-8")
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "verification_commands": [],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.BLOCKED
+    assert record.task_records == ()
+    assert record.commit_refs == ()
+
+
+def test_autonomous_session_ignores_existing_bioclaw_checkpoint_noise_when_committing(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    (workspace / ".bioclaw" / "sessions" / "old").mkdir(parents=True)
+    (workspace / ".bioclaw" / "sessions" / "old" / "session.json").write_text("{}", encoding="utf-8")
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "verification_commands": [],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.COMPLETED
+    committed_files = _git(workspace, "show", "--name-only", "--format=", "HEAD").stdout.splitlines()
+    assert "README.md" in committed_files
+    assert all(not path.startswith(".bioclaw/") for path in committed_files)
+
+
 def test_autonomous_session_blocks_commit_when_verification_fails(tmp_path):
     workspace = tmp_path / "repo"
     workspace.mkdir()
