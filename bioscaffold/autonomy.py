@@ -131,6 +131,37 @@ class AutonomousSessionRequest:
 
 
 @dataclass(frozen=True)
+class BiologicalFleetUnit:
+    unit_id: str
+    structure_type: str
+    biological_action: str
+    mechanical_function: str
+    exec_slot: int = 1
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "unit_id": self.unit_id,
+            "structure_type": self.structure_type,
+            "biological_action": self.biological_action,
+            "mechanical_function": self.mechanical_function,
+            "exec_slot": self.exec_slot,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "BiologicalFleetUnit":
+        exec_slot = _optional_int(payload, "exec_slot", 1)
+        if exec_slot <= 0:
+            raise ValueError("exec_slot must be greater than zero")
+        return cls(
+            unit_id=_required_string(payload, "unit_id", "structure_fleet[]"),
+            structure_type=_required_string(payload, "structure_type", "structure_fleet[]"),
+            biological_action=_required_string(payload, "biological_action", "structure_fleet[]"),
+            mechanical_function=_required_string(payload, "mechanical_function", "structure_fleet[]"),
+            exec_slot=exec_slot,
+        )
+
+
+@dataclass(frozen=True)
 class SeedAutonomousRequest:
     session_id: str
     workspace_path: Path
@@ -148,6 +179,8 @@ class SeedAutonomousRequest:
     turn_delay_seconds: int = 0
     resume_existing_seed: bool = False
     generation_batch_size: int = 0
+    enable_structure_fleet: bool = True
+    structure_fleet: tuple[BiologicalFleetUnit, ...] = ()
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "SeedAutonomousRequest":
@@ -160,6 +193,7 @@ class SeedAutonomousRequest:
         generation_batch_size = _optional_int(payload, "generation_batch_size", 0)
         if generation_batch_size < 0:
             raise ValueError("generation_batch_size must be greater than or equal to zero")
+        structure_fleet = _biological_fleet_from_payload(payload.get("structure_fleet"))
 
         return cls(
             session_id=_required_string(payload, "session_id"),
@@ -178,6 +212,8 @@ class SeedAutonomousRequest:
             turn_delay_seconds=turn_delay_seconds,
             resume_existing_seed=_optional_bool(payload, "resume_existing_seed", False),
             generation_batch_size=generation_batch_size,
+            enable_structure_fleet=_optional_bool(payload, "enable_structure_fleet", True),
+            structure_fleet=structure_fleet,
         )
 
 
@@ -186,6 +222,7 @@ class SeedGenerationPlan:
     generation_index: int
     project_tasks: tuple[AutonomousWorkItem, ...]
     verification_commands: tuple[str, ...]
+    fleet_actions: tuple["BiologicalFleetActionRecord", ...] = ()
     is_terminal: bool = False
 
     def to_payload(self) -> dict[str, Any]:
@@ -193,8 +230,42 @@ class SeedGenerationPlan:
             "generation_index": self.generation_index,
             "project_tasks": [task.to_payload() for task in self.project_tasks],
             "verification_commands": list(self.verification_commands),
+            "fleet_actions": [action.to_payload() for action in self.fleet_actions],
             "is_terminal": self.is_terminal,
         }
+
+
+@dataclass(frozen=True)
+class BiologicalFleetActionRecord:
+    unit_id: str
+    structure_type: str
+    biological_action: str
+    mechanical_function: str
+    status: str = "planned"
+    evidence: str = ""
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "unit_id": self.unit_id,
+            "structure_type": self.structure_type,
+            "biological_action": self.biological_action,
+            "mechanical_function": self.mechanical_function,
+            "status": self.status,
+            "evidence": self.evidence,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "BiologicalFleetActionRecord":
+        if not isinstance(payload, dict):
+            raise ValueError("fleet_actions[] must be a JSON object")
+        return cls(
+            unit_id=_required_string(payload, "unit_id", "fleet_actions[]"),
+            structure_type=_required_string(payload, "structure_type", "fleet_actions[]"),
+            biological_action=_required_string(payload, "biological_action", "fleet_actions[]"),
+            mechanical_function=_required_string(payload, "mechanical_function", "fleet_actions[]"),
+            status=str(payload.get("status", "planned")),
+            evidence=str(payload.get("evidence", "")),
+        )
 
 
 @dataclass(frozen=True)
@@ -202,6 +273,7 @@ class SeedGenerationRecord:
     generation_index: int
     project_tasks: tuple[AutonomousWorkItem, ...]
     verification_commands: tuple[str, ...]
+    fleet_actions: tuple[BiologicalFleetActionRecord, ...] = ()
     status: SeedGenerationStatus = SeedGenerationStatus.PLANNED
     terminal: bool = False
     reason: str = ""
@@ -213,6 +285,7 @@ class SeedGenerationRecord:
             "generation_index": self.generation_index,
             "project_tasks": [task.to_payload() for task in self.project_tasks],
             "verification_commands": list(self.verification_commands),
+            "fleet_actions": [action.to_payload() for action in self.fleet_actions],
             "status": self.status.value,
             "terminal": self.terminal,
             "reason": self.reason,
@@ -244,6 +317,11 @@ class SeedAutonomousController:
             existing_record = _read_seed_record(summary_path)
             if existing_record.status is not SeedGenerationStatus.PAUSED:
                 return existing_record
+            if (
+                existing_record.enable_structure_fleet != request.enable_structure_fleet
+                or existing_record.structure_fleet != request.structure_fleet
+            ):
+                raise ValueError("structure_fleet does not match existing seed session")
 
         generations: list[SeedGenerationRecord] = list(existing_record.generations) if existing_record else []
         started_at = self.clock()
@@ -271,6 +349,7 @@ class SeedAutonomousController:
                     generation_index=plan.generation_index,
                     project_tasks=plan.project_tasks,
                     verification_commands=plan.verification_commands,
+                    fleet_actions=plan.fleet_actions,
                     status=SeedGenerationStatus.COMPLETED,
                     terminal=True,
                     reason="No remaining work to plan.",
@@ -310,6 +389,7 @@ class SeedAutonomousController:
                     generation_index=plan.generation_index,
                     project_tasks=plan.project_tasks,
                     verification_commands=plan.verification_commands,
+                    fleet_actions=plan.fleet_actions,
                     status=SeedGenerationStatus.COMPLETED,
                     terminal=False,
                     reason="inner session completed.",
@@ -337,6 +417,7 @@ class SeedAutonomousController:
                 generation_index=plan.generation_index,
                 project_tasks=plan.project_tasks,
                 verification_commands=plan.verification_commands,
+                fleet_actions=plan.fleet_actions,
                 status=mapped_status,
                 terminal=True,
                 reason=f"inner session ended with {inner_status.value}.",
@@ -366,6 +447,8 @@ class SeedAutonomousController:
             turn_delay_seconds=request.turn_delay_seconds,
             resume_existing_seed=request.resume_existing_seed,
             generation_batch_size=request.generation_batch_size,
+            enable_structure_fleet=request.enable_structure_fleet,
+            structure_fleet=request.structure_fleet,
             generations=tuple(generations),
         ).to_payload()
         summary_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -382,6 +465,8 @@ class SeedAutonomousController:
             turn_delay_seconds=request.turn_delay_seconds,
             resume_existing_seed=request.resume_existing_seed,
             generation_batch_size=request.generation_batch_size,
+            enable_structure_fleet=request.enable_structure_fleet,
+            structure_fleet=request.structure_fleet,
             generations=tuple(generations),
         )
 
@@ -423,6 +508,8 @@ class SeedAutonomousRecord:
     turn_delay_seconds: int = 0
     resume_existing_seed: bool = False
     generation_batch_size: int = 0
+    enable_structure_fleet: bool = True
+    structure_fleet: tuple[BiologicalFleetUnit, ...] = ()
     generations: tuple[SeedGenerationRecord, ...] = ()
 
     def to_payload(self) -> dict[str, Any]:
@@ -439,6 +526,8 @@ class SeedAutonomousRecord:
             "turn_delay_seconds": self.turn_delay_seconds,
             "resume_existing_seed": self.resume_existing_seed,
             "generation_batch_size": self.generation_batch_size,
+            "enable_structure_fleet": self.enable_structure_fleet,
+            "structure_fleet": [unit.to_payload() for unit in self.structure_fleet],
             "generations": [generation.to_payload() for generation in self.generations],
         }
 
@@ -468,6 +557,8 @@ def _seed_record_from_payload(payload: dict[str, Any]) -> SeedAutonomousRecord:
         turn_delay_seconds=int(payload.get("turn_delay_seconds", 0)),
         resume_existing_seed=bool(payload.get("resume_existing_seed", False)),
         generation_batch_size=int(payload.get("generation_batch_size", 0)),
+        enable_structure_fleet=_optional_bool(payload, "enable_structure_fleet", True),
+        structure_fleet=_biological_fleet_from_payload(payload.get("structure_fleet")),
         generations=tuple(_seed_generation_record_from_payload(item) for item in generations),
     )
 
@@ -478,16 +569,121 @@ def _seed_generation_record_from_payload(payload: dict[str, Any]) -> SeedGenerat
     project_tasks = payload.get("project_tasks", ())
     if not isinstance(project_tasks, list):
         raise ValueError("seed generation project_tasks must be a list")
+    fleet_actions = payload.get("fleet_actions", ())
+    if not isinstance(fleet_actions, list):
+        raise ValueError("seed generation fleet_actions must be a list")
 
     return SeedGenerationRecord(
         generation_index=int(payload.get("generation_index", 0)),
         project_tasks=tuple(AutonomousWorkItem.from_payload(item) for item in project_tasks),
         verification_commands=tuple(str(command) for command in payload.get("verification_commands", ())),
+        fleet_actions=tuple(BiologicalFleetActionRecord.from_payload(item) for item in fleet_actions),
         status=SeedGenerationStatus(str(payload.get("status", SeedGenerationStatus.PLANNED.value))),
         terminal=bool(payload.get("terminal", False)),
         reason=str(payload.get("reason", "")),
         inner_checkpoint_path=str(payload.get("inner_checkpoint_path", "")),
         inner_status=str(payload.get("inner_status", "")),
+    )
+
+
+def _biological_fleet_from_payload(raw: Any) -> tuple[BiologicalFleetUnit, ...]:
+    if raw is None:
+        return _default_biological_fleet()
+    if not isinstance(raw, list):
+        raise ValueError("structure_fleet must be a list")
+    if not raw:
+        return ()
+    return tuple(BiologicalFleetUnit.from_payload(item) for item in raw)
+
+
+def _default_biological_fleet() -> tuple[BiologicalFleetUnit, ...]:
+    return (
+        BiologicalFleetUnit(
+            unit_id="fleet.dna",
+            structure_type="dna",
+            biological_action="store heritable product instructions",
+            mechanical_function="read and preserve the project seed goal",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.rna",
+            structure_type="rna",
+            biological_action="transcribe instructions into actionable messages",
+            mechanical_function="convert project intent into microtask wording",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.protein",
+            structure_type="protein",
+            biological_action="perform catalyzed work",
+            mechanical_function="execute one bounded project command or edit",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.membrane",
+            structure_type="membrane",
+            biological_action="gate inputs and outputs",
+            mechanical_function="enforce workspace and report path boundaries",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.mitochondria",
+            structure_type="mitochondria",
+            biological_action="budget energy for the cell",
+            mechanical_function="reserve runtime for the turn and cap command scope",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.bacteria",
+            structure_type="bacteria",
+            biological_action="apply pathogen pressure",
+            mechanical_function="inject a small adversarial verification challenge",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.white_blood_cell",
+            structure_type="white_blood_cell",
+            biological_action="detect and neutralize pathogens",
+            mechanical_function="validate output and quarantine unsafe work",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.tissue",
+            structure_type="tissue",
+            biological_action="coordinate related cells",
+            mechanical_function="group compatible microtasks into a local subsystem",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.organ",
+            structure_type="organ",
+            biological_action="coordinate specialized tissue function",
+            mechanical_function="review subsystem health and integration signals",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.organism",
+            structure_type="organism",
+            biological_action="maintain whole-body homeostasis",
+            mechanical_function="summarize product state and decide continuation",
+        ),
+        BiologicalFleetUnit(
+            unit_id="fleet.generation_reviewer",
+            structure_type="generation_reviewer",
+            biological_action="select stable structures for the next generation",
+            mechanical_function="record promoted, blocked, or quarantined outcomes",
+        ),
+    )
+
+
+def _fleet_actions_for_generation(
+    request: SeedAutonomousRequest,
+    generation_index: int,
+) -> tuple[BiologicalFleetActionRecord, ...]:
+    if not request.enable_structure_fleet:
+        return ()
+
+    return tuple(
+        BiologicalFleetActionRecord(
+            unit_id=unit.unit_id,
+            structure_type=unit.structure_type,
+            biological_action=unit.biological_action,
+            mechanical_function=unit.mechanical_function,
+            status="planned",
+            evidence=f"generation {generation_index:06d} fleet action planned",
+        )
+        for unit in request.structure_fleet
     )
 
 
@@ -497,6 +693,7 @@ class SeedMicrotaskPlanner:
         baseline_command = _seed_baseline_command(workspace_path / "tests")
         _ = _repo_has_local_fact(workspace_path / "README.md")
         _ = _repo_has_local_fact(workspace_path / "pyproject.toml")
+        fleet_actions = _fleet_actions_for_generation(request, generation_index)
 
         existing_gitignore = workspace_path / ".gitignore"
         seed_gitignore_entries = _seed_gitignore_entries(workspace_path)
@@ -513,12 +710,14 @@ class SeedMicrotaskPlanner:
                         ),
                     ),
                     verification_commands=verification_commands,
+                    fleet_actions=fleet_actions,
                     is_terminal=False,
                 )
             return SeedGenerationPlan(
                 generation_index=generation_index,
                 project_tasks=(),
                 verification_commands=(),
+                fleet_actions=fleet_actions,
                 is_terminal=True,
             )
 
@@ -546,6 +745,7 @@ class SeedMicrotaskPlanner:
             generation_index=generation_index,
             project_tasks=tasks,
             verification_commands=verification_commands,
+            fleet_actions=fleet_actions,
             is_terminal=False,
         )
 

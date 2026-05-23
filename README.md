@@ -129,6 +129,8 @@ For scheduler-owned runs, split the burn into resumable one-generation batches:
 
 With these fields, repeated `run-seed` invocations append to `.bioclaw/seeds/<session_id>/seed-session.json`. Each batch returns `status = "paused"` until the generation limit, a policy failure, or the external scheduler's wall-clock deadline ends the run. Terminal/no-work repositories become verification-only generations, so the scheduler can keep burning without one long process.
 
+Each seeded generation now records a whole-system biological fleet by default. The default fleet includes DNA, RNA, protein, membrane, mitochondria, bacteria, white blood cell, tissue, organ, organism, and generation-reviewer structures. Every structure records one tiny biological action mapped to a mechanical project function in `generations[].fleet_actions`; the runnable project work remains bounded and policy-checked through the existing autonomous session executor.
+
 Seeded workflow inherits existing autonomous policy defaults:
 
 - push is denied unless explicitly allowed,
