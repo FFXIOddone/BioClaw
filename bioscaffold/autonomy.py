@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import time
 from typing import Any
 
 from bioscaffold.compiler import ProductRequirement
@@ -333,6 +334,7 @@ class AutonomousSessionController:
     def run(self, request: AutonomousSessionRequest) -> AutonomousSessionRecord:
         workspace_path = request.workspace_path.resolve()
         generation_index = 1
+        started_at = time.monotonic()
         store = SessionCheckpointStore(workspace_path, request.session_id)
         policy = AutonomousPolicy.default(workspace_path=workspace_path, allow_push=request.allow_push)
         executor = LocalAutonomousExecutor(
@@ -346,6 +348,10 @@ class AutonomousSessionController:
         status = AutonomousSessionStatus.COMPLETED
 
         for item in request.project_tasks:
+            if request.max_runtime_seconds <= 0 or time.monotonic() - started_at >= request.max_runtime_seconds:
+                status = AutonomousSessionStatus.TIMEOUT
+                break
+
             task_record, item_command_records = executor.execute(item)
             task_records.append(task_record)
             command_records.extend(item_command_records)
@@ -383,6 +389,9 @@ class AutonomousSessionController:
         )
         store.write_checkpoint(record)
         return record
+
+    def resume(self, session_path: Path) -> AutonomousSessionRecord:
+        return SessionCheckpointStore.load(session_path)
 
     def _run_verification(
         self,
