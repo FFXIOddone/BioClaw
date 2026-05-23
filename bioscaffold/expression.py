@@ -27,8 +27,14 @@ class ExpressionEngine:
             inputs=(gene_ref, promoter_ref),
             expected_output="rna_transcript",
         )
-        gene = registry.get(gene_ref)
-        promoter = registry.get(promoter_ref)
+        try:
+            gene = registry.get(gene_ref)
+        except KeyError:
+            return self._missing_input(task, gene_ref)
+        try:
+            promoter = registry.get(promoter_ref)
+        except KeyError:
+            return self._missing_input(task, promoter_ref)
         if gene.molecule_type is not MoleculeType.GENE:
             return task.with_terminal(TaskState.FAILED, reason=f"{gene_ref} is not a gene")
         if promoter.molecule_type is not MoleculeType.PROMOTER:
@@ -40,7 +46,9 @@ class ExpressionEngine:
             )
 
         transcript_ref = f"transcript.{self._suffix(gene_ref)}.v1"
-        registry.add(
+        duplicate = self._add_structure(
+            registry,
+            task,
             MolecularStructure(
                 ref=transcript_ref,
                 molecule_type=MoleculeType.RNA_TRANSCRIPT,
@@ -49,6 +57,8 @@ class ExpressionEngine:
                 markers=tuple(dict.fromkeys((*gene.markers, "transcribed"))),
             )
         )
+        if duplicate is not None:
+            return duplicate
         return task.with_terminal(
             TaskState.COMPLETE,
             reason="gene transcribed",
@@ -76,14 +86,19 @@ class ExpressionEngine:
             inputs=(transcript_ref,),
             expected_output="spliced_transcript",
         )
-        transcript = registry.get(transcript_ref)
+        try:
+            transcript = registry.get(transcript_ref)
+        except KeyError:
+            return self._missing_input(task, transcript_ref)
         if transcript.molecule_type is not MoleculeType.RNA_TRANSCRIPT:
             return task.with_terminal(TaskState.FAILED, reason=f"{transcript_ref} is not an RNA transcript")
         if "malformed" in transcript.markers:
             return task.with_terminal(TaskState.QUARANTINED, reason="transcript is malformed")
 
         spliced_ref = f"spliced.{self._suffix(transcript_ref)}"
-        registry.add(
+        duplicate = self._add_structure(
+            registry,
+            task,
             MolecularStructure(
                 ref=spliced_ref,
                 molecule_type=MoleculeType.SPLICED_TRANSCRIPT,
@@ -94,6 +109,8 @@ class ExpressionEngine:
                 ),
             )
         )
+        if duplicate is not None:
+            return duplicate
         return task.with_terminal(
             TaskState.COMPLETE,
             reason="transcript spliced",
@@ -121,12 +138,17 @@ class ExpressionEngine:
             inputs=(spliced_ref,),
             expected_output="protein_artifact",
         )
-        transcript = registry.get(spliced_ref)
+        try:
+            transcript = registry.get(spliced_ref)
+        except KeyError:
+            return self._missing_input(task, spliced_ref)
         if transcript.molecule_type is not MoleculeType.SPLICED_TRANSCRIPT:
             return task.with_terminal(TaskState.FAILED, reason=f"{spliced_ref} is not a spliced transcript")
 
         protein_ref = f"protein.{self._suffix(spliced_ref)}"
-        registry.add(
+        duplicate = self._add_structure(
+            registry,
+            task,
             MolecularStructure(
                 ref=protein_ref,
                 molecule_type=MoleculeType.PROTEIN,
@@ -135,6 +157,8 @@ class ExpressionEngine:
                 markers=("artifact_fragment",),
             )
         )
+        if duplicate is not None:
+            return duplicate
         return task.with_terminal(
             TaskState.COMPLETE,
             reason="spliced transcript translated",
@@ -143,3 +167,26 @@ class ExpressionEngine:
 
     def _suffix(self, ref: str) -> str:
         return ref.split(".", 1)[1] if "." in ref else ref
+
+    def _missing_input(self, task: MicroTask, ref: str) -> MicroTask:
+        return task.with_terminal(
+            TaskState.BLOCKED,
+            reason=f"missing molecular input: {ref}",
+        )
+
+    def _add_structure(
+        self,
+        registry: MoleculeRegistry,
+        task: MicroTask,
+        structure: MolecularStructure,
+    ) -> MicroTask | None:
+        try:
+            registry.add(structure)
+        except ValueError as exc:
+            if "duplicate molecular structure ref" not in str(exc):
+                raise
+            return task.with_terminal(
+                TaskState.FAILED,
+                reason=f"duplicate molecular output: {structure.ref}",
+            )
+        return None
