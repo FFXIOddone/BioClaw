@@ -334,7 +334,7 @@ git commit -m "Add molecular and immune component cards"
 - Create: `tests/test_microtasks.py`
 - Create: `bioscaffold/microtasks.py`
 
-- [ ] **Step 1: Write failing micro-task tests**
+- [x] **Step 1: Write failing micro-task tests**
 
 Create `tests/test_microtasks.py`:
 
@@ -444,13 +444,13 @@ def test_agent_hat_policy_rejects_out_of_scope_operation():
     assert decision.reason == "hat gene_scout cannot perform inject"
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_microtasks.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.microtasks'`.
 
-- [ ] **Step 3: Implement micro-task contracts**
+- [x] **Step 3: Implement micro-task contracts**
 
 Create `bioscaffold/microtasks.py`:
 
@@ -616,13 +616,13 @@ class AgentHatPolicy:
         return PolicyDecision.allow("hat operation allowed")
 ```
 
-- [ ] **Step 4: Run micro-task tests**
+- [x] **Step 4: Run micro-task tests**
 
 Run: `python -m pytest tests/test_microtasks.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_microtasks.py bioscaffold/microtasks.py
