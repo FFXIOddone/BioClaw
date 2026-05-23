@@ -793,7 +793,7 @@ git commit -m "Add strict turn barrier"
 - Create: `tests/test_molecules_immune.py`
 - Create: `bioscaffold/molecules.py`
 
-- [ ] **Step 1: Write failing molecule registry tests**
+- [x] **Step 1: Write failing molecule registry tests**
 
 Create `tests/test_molecules_immune.py`:
 
@@ -832,13 +832,13 @@ def test_molecule_registry_rejects_duplicate_refs():
         registry.add(gene)
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_molecules_immune.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.molecules'`.
 
-- [ ] **Step 3: Implement molecule registry**
+- [x] **Step 3: Implement molecule registry**
 
 Create `bioscaffold/molecules.py`:
 
@@ -896,13 +896,13 @@ class MoleculeRegistry:
         return tuple(self._structures.values())
 ```
 
-- [ ] **Step 4: Run molecule tests**
+- [x] **Step 4: Run molecule tests**
 
 Run: `python -m pytest tests/test_molecules_immune.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_molecules_immune.py bioscaffold/molecules.py
