@@ -13,6 +13,8 @@ class OrganismStatus(str, Enum):
     DELIVERED = "delivered"
     ARCHIVED = "archived"
     QUARANTINED = "quarantined"
+    BLOCKED = "blocked"
+    FAILED = "failed"
 
 
 @dataclass(frozen=True)
@@ -44,7 +46,7 @@ class ProductOrganism:
         quarantined = tuple(
             dict.fromkeys((*self.quarantined_structures, *generation.quarantined_structures))
         )
-        status = OrganismStatus.QUARANTINED if quarantined else OrganismStatus.GROWING
+        status = self._status_after_generation(generation, quarantined)
         return replace(
             self,
             status=status,
@@ -56,6 +58,10 @@ class ProductOrganism:
     def deliver(self) -> "ProductOrganism":
         if self.status is OrganismStatus.QUARANTINED:
             raise ValueError("quarantined organism cannot be delivered")
+        if self.status is OrganismStatus.BLOCKED:
+            raise ValueError("blocked organism cannot be delivered")
+        if self.status is OrganismStatus.FAILED:
+            raise ValueError("failed organism cannot be delivered")
         if not self.stable_structures:
             raise ValueError("organism has no stable structures to deliver")
         return replace(
@@ -72,3 +78,16 @@ class ProductOrganism:
             status=OrganismStatus.ARCHIVED,
             archive_ref=f"archive.{self.organism_id}.{len(self.generation_ids):06d}",
         )
+
+    def _status_after_generation(
+        self,
+        generation: Generation,
+        quarantined: tuple[str, ...],
+    ) -> OrganismStatus:
+        if quarantined:
+            return OrganismStatus.QUARANTINED
+        if generation.blocked_tasks:
+            return OrganismStatus.BLOCKED
+        if generation.failed_tasks:
+            return OrganismStatus.FAILED
+        return OrganismStatus.GROWING
