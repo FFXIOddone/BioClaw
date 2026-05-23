@@ -216,7 +216,7 @@ git commit -m "Harden generation review against pathogen promotion"
 - Modify: `tests/test_molecules_immune.py`
 - Modify: `bioscaffold/immune.py`
 
-- [ ] **Step 1: Write failing immune memory test**
+- [x] **Step 1: Write failing immune memory test**
 
 Append to `tests/test_molecules_immune.py`:
 
@@ -267,13 +267,13 @@ def test_immune_system_learns_known_markers_from_antibody_memory():
     assert event.antibody_ref == "antibody.fake_completion_marker"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_molecules_immune.py::test_immune_system_learns_known_markers_from_antibody_memory -v`
 
 Expected: FAIL because `ImmuneSystem.from_registry` does not exist.
 
-- [ ] **Step 3: Implement memory loading**
+- [x] **Step 3: Implement memory loading**
 
 Add this classmethod to `ImmuneSystem` in `bioscaffold/immune.py`:
 
@@ -286,13 +286,13 @@ Add this classmethod to `ImmuneSystem` in `bioscaffold/immune.py`:
         return cls(known_markers=markers)
 ```
 
-- [ ] **Step 4: Run immune tests**
+- [x] **Step 4: Run immune tests**
 
 Run: `python -m pytest tests/test_molecules_immune.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_molecules_immune.py bioscaffold/immune.py

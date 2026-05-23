@@ -84,3 +84,49 @@ def test_white_blood_cell_quarantines_known_marker():
     assert event.action == "quarantine"
     assert event.antibody_ref == "antibody.fake_completion_marker"
     assert registry.get("antibody.fake_completion_marker").molecule_type is MoleculeType.ANTIBODY
+
+
+def test_immune_system_learns_known_markers_from_antibody_memory():
+    registry = MoleculeRegistry()
+    first_fixture = PathogenFixture(
+        fixture_id="bacteria_fake_done_v1",
+        defect_marker="fake_completion_marker",
+        injected_ref="plasmid.injected.fake_done.v1",
+        payload="fake done marker",
+    )
+    second_fixture = PathogenFixture(
+        fixture_id="bacteria_fake_done_v2",
+        defect_marker="fake_completion_marker",
+        injected_ref="plasmid.injected.fake_done.v2",
+        payload="fake done marker repeat",
+    )
+    first_fixture.inject(
+        registry,
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+    ImmuneSystem(known_markers={"fake_completion_marker"}).inspect(
+        registry,
+        target_ref="plasmid.injected.fake_done.v1",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+    second_fixture.inject(
+        registry,
+        turn_id="turn_000002",
+        generation_id="gen_000002",
+        organism_id="organism_000001",
+    )
+
+    task, event = ImmuneSystem.from_registry(registry).inspect(
+        registry,
+        target_ref="plasmid.injected.fake_done.v2",
+        turn_id="turn_000002",
+        generation_id="gen_000002",
+        organism_id="organism_000001",
+    )
+
+    assert task.state is TaskState.QUARANTINED
+    assert event.antibody_ref == "antibody.fake_completion_marker"

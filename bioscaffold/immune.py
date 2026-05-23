@@ -61,6 +61,13 @@ class ImmuneSystem:
     def __init__(self, *, known_markers: set[str]) -> None:
         self.known_markers = set(known_markers)
 
+    @classmethod
+    def from_registry(cls, registry: MoleculeRegistry) -> "ImmuneSystem":
+        markers: set[str] = set()
+        for antibody in registry.find_by_type(MoleculeType.ANTIBODY):
+            markers.update(antibody.markers)
+        return cls(known_markers=markers)
+
     def inspect(
         self,
         registry: MoleculeRegistry,
