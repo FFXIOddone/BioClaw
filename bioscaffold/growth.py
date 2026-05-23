@@ -43,37 +43,39 @@ class GrowthCycleRunner:
         turn_id: str,
         immune_system: ImmuneSystem | None = None,
         pathogen_fixtures: tuple[PathogenFixture, ...] = (),
+        prefix_tasks: tuple[MicroTask, ...] = (),
     ) -> GrowthCycleResult:
-        tasks: list[MicroTask] = []
+        tasks: list[MicroTask] = list(prefix_tasks)
         immune_events: list[ImmuneEvent] = []
-        transcribe_task = self.expression_engine.transcribe(
-            registry,
-            gene_ref=gene_ref,
-            promoter_ref=promoter_ref,
-            turn_id=turn_id,
-            generation_id=generation_id,
-            organism_id=organism.organism_id,
-        )
-        tasks.append(transcribe_task)
-        if transcribe_task.state is TaskState.COMPLETE:
-            splice_task = self.expression_engine.splice(
+        if all(task.state is TaskState.COMPLETE for task in prefix_tasks):
+            transcribe_task = self.expression_engine.transcribe(
                 registry,
-                transcript_ref=transcribe_task.outputs[0],
+                gene_ref=gene_ref,
+                promoter_ref=promoter_ref,
                 turn_id=turn_id,
                 generation_id=generation_id,
                 organism_id=organism.organism_id,
             )
-            tasks.append(splice_task)
-            if splice_task.state is TaskState.COMPLETE:
-                tasks.append(
-                    self.expression_engine.translate(
-                        registry,
-                        spliced_ref=splice_task.outputs[0],
-                        turn_id=turn_id,
-                        generation_id=generation_id,
-                        organism_id=organism.organism_id,
-                    )
+            tasks.append(transcribe_task)
+            if transcribe_task.state is TaskState.COMPLETE:
+                splice_task = self.expression_engine.splice(
+                    registry,
+                    transcript_ref=transcribe_task.outputs[0],
+                    turn_id=turn_id,
+                    generation_id=generation_id,
+                    organism_id=organism.organism_id,
                 )
+                tasks.append(splice_task)
+                if splice_task.state is TaskState.COMPLETE:
+                    tasks.append(
+                        self.expression_engine.translate(
+                            registry,
+                            spliced_ref=splice_task.outputs[0],
+                            turn_id=turn_id,
+                            generation_id=generation_id,
+                            organism_id=organism.organism_id,
+                        )
+                    )
 
         inspector = immune_system or ImmuneSystem.from_registry(registry)
         inspected_refs: set[str] = set()
