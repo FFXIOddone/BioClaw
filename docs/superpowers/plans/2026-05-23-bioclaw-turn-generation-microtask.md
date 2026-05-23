@@ -635,7 +635,7 @@ git commit -m "Add microtask contracts and hat policy"
 - Create: `tests/test_turns.py`
 - Create: `bioscaffold/turns.py`
 
-- [ ] **Step 1: Write failing turn tests**
+- [x] **Step 1: Write failing turn tests**
 
 Create `tests/test_turns.py`:
 
@@ -718,13 +718,13 @@ def test_turn_preserves_failed_blocked_and_quarantined_evidence():
     ]
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_turns.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.turns'`.
 
-- [ ] **Step 3: Implement turn barrier**
+- [x] **Step 3: Implement turn barrier**
 
 Create `bioscaffold/turns.py`:
 
@@ -774,13 +774,13 @@ class TurnEngine:
         return replace(turn, status=TurnStatus.CLOSED, outputs=outputs)
 ```
 
-- [ ] **Step 4: Run turn tests**
+- [x] **Step 4: Run turn tests**
 
 Run: `python -m pytest tests/test_turns.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_turns.py bioscaffold/turns.py
