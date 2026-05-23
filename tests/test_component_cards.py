@@ -34,6 +34,7 @@ def test_package_imports():
         "TaskState",
         "Turn",
         "TurnEngine",
+        "TurnProposal",
     ]
 
 
