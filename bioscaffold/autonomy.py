@@ -52,6 +52,16 @@ class AutonomousWorkItem:
     command: str = ""
     expected_output: str = ""
 
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "operation": self.operation.value,
+            "path": self.path,
+            "content": self.content,
+            "command": self.command,
+            "expected_output": self.expected_output,
+        }
+
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "AutonomousWorkItem":
         return cls(
@@ -146,8 +156,8 @@ class SeedAutonomousRequest:
             product_name=_required_string(payload, "product_name"),
             seed_goal=_required_string(payload, "seed_goal"),
             verification_commands=_optional_string_sequence(payload, "verification_commands"),
-            max_runtime_seconds=int(payload.get("max_runtime_seconds", 28800)),
-            generation_limit=int(payload.get("generation_limit", 4)),
+            max_runtime_seconds=_optional_int(payload, "max_runtime_seconds", 28800),
+            generation_limit=_optional_int(payload, "generation_limit", 4),
             allow_local_edits=_optional_bool(payload, "allow_local_edits", True),
             allow_local_commits=_optional_bool(payload, "allow_local_commits", True),
             allow_push=_optional_bool(payload, "allow_push", False),
@@ -162,6 +172,14 @@ class SeedGenerationPlan:
     verification_commands: tuple[str, ...]
     is_terminal: bool = False
 
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "generation_index": self.generation_index,
+            "project_tasks": [task.to_payload() for task in self.project_tasks],
+            "verification_commands": list(self.verification_commands),
+            "is_terminal": self.is_terminal,
+        }
+
 
 @dataclass(frozen=True)
 class SeedGenerationRecord:
@@ -170,6 +188,15 @@ class SeedGenerationRecord:
     verification_commands: tuple[str, ...]
     status: SeedGenerationStatus = SeedGenerationStatus.PLANNED
     terminal: bool = False
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "generation_index": self.generation_index,
+            "project_tasks": [task.to_payload() for task in self.project_tasks],
+            "verification_commands": list(self.verification_commands),
+            "status": self.status.value,
+            "terminal": self.terminal,
+        }
 
 
 @dataclass(frozen=True)
@@ -183,6 +210,19 @@ class SeedAutonomousRecord:
     generation_limit: int
     max_runtime_seconds: int
     generations: tuple[SeedGenerationRecord, ...] = ()
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "session_id": self.session_id,
+            "workspace_path": self.workspace_path,
+            "organism_id": self.organism_id,
+            "product_name": self.product_name,
+            "seed_goal": self.seed_goal,
+            "status": self.status.value,
+            "generation_limit": self.generation_limit,
+            "max_runtime_seconds": self.max_runtime_seconds,
+            "generations": [generation.to_payload() for generation in self.generations],
+        }
 
 
 class SeedMicrotaskPlanner:
@@ -702,6 +742,15 @@ def _optional_bool(payload: dict[str, Any], key: str, default: bool) -> bool:
     value = payload[key]
     if not isinstance(value, bool):
         raise ValueError(f"{key} must be a boolean")
+    return value
+
+
+def _optional_int(payload: dict[str, Any], key: str, default: int) -> int:
+    if key not in payload:
+        return default
+    value = payload[key]
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{key} must be an integer")
     return value
 
 
