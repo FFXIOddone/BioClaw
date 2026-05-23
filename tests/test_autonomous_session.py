@@ -484,6 +484,29 @@ def test_autonomous_session_ignores_existing_bioclaw_checkpoint_noise_when_commi
     assert all(not path.startswith(".bioclaw/") for path in committed_files)
 
 
+def test_autonomous_session_unstages_staged_bioclaw_checkpoint_noise_before_commit(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    init_git_repo(workspace)
+    (workspace / ".bioclaw" / "sessions" / "old").mkdir(parents=True)
+    checkpoint_noise = workspace / ".bioclaw" / "sessions" / "old" / "session.json"
+    checkpoint_noise.write_text("{}", encoding="utf-8")
+    _git(workspace, "add", str(checkpoint_noise))
+    request = AutonomousSessionRequest.from_payload(
+        {
+            **_request_payload(workspace),
+            "verification_commands": [],
+        }
+    )
+
+    record = AutonomousSessionController().run(request)
+
+    assert record.status is AutonomousSessionStatus.COMPLETED
+    committed_files = _git(workspace, "show", "--name-only", "--format=", "HEAD").stdout.splitlines()
+    assert "README.md" in committed_files
+    assert all(not path.startswith(".bioclaw/") for path in committed_files)
+
+
 def test_autonomous_session_blocks_commit_when_verification_fails(tmp_path):
     workspace = tmp_path / "repo"
     workspace.mkdir()
