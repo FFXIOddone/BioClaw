@@ -66,7 +66,10 @@ class TurnEngine:
         if denied:
             raise ValueError(f"turn contains unauthorized tasks: {', '.join(denied)}")
         outputs = tuple(output for task in turn.tasks for output in task.outputs)
-        proposals = (*turn.next_turn_proposals, *self._derive_proposals(turn.tasks))
+        self._validate_proposals(turn.next_turn_proposals)
+        proposals = self._dedupe_proposals(
+            (*turn.next_turn_proposals, *self._derive_proposals(turn.tasks))
+        )
         return replace(
             turn,
             status=TurnStatus.CLOSED,
@@ -104,3 +107,13 @@ class TurnEngine:
         if task.state is TaskState.QUARANTINED:
             return MicroOperation.NEUTRALIZE, AgentHat.WHITE_BLOOD_CELL
         return None
+
+    def _validate_proposals(self, proposals: tuple[TurnProposal, ...]) -> None:
+        if any(not isinstance(proposal, TurnProposal) for proposal in proposals):
+            raise ValueError("next_turn_proposals must contain TurnProposal entries")
+
+    def _dedupe_proposals(
+        self,
+        proposals: tuple[TurnProposal, ...],
+    ) -> tuple[TurnProposal, ...]:
+        return tuple(dict.fromkeys(proposals))

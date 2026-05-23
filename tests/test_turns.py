@@ -1,7 +1,7 @@
 import pytest
 
 from bioscaffold.microtasks import AgentHat, BioScale, MicroOperation, MicroTask, TaskState
-from bioscaffold.turns import Turn, TurnEngine, TurnStatus
+from bioscaffold.turns import Turn, TurnEngine, TurnProposal, TurnStatus
 
 
 def make_task(task_id: str, state: TaskState = TaskState.PENDING) -> MicroTask:
@@ -102,6 +102,56 @@ def test_turn_derives_next_turn_proposals_from_failed_blocked_and_quarantined_ta
         MicroOperation.FIND,
         MicroOperation.NEUTRALIZE,
     ]
+
+
+def test_turn_rejects_legacy_string_proposals():
+    turn = Turn(
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+        tasks=(make_task("task_000001", TaskState.COMPLETE),),
+        next_turn_proposals=("legacy proposal",),
+    )
+
+    with pytest.raises(ValueError, match="next_turn_proposals must contain TurnProposal"):
+        TurnEngine().close(turn)
+
+
+def test_turn_close_is_idempotent_for_next_turn_proposals():
+    turn = Turn(
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+        tasks=(make_task("task_failed", TaskState.FAILED),),
+    )
+
+    once = TurnEngine().close(turn)
+    twice = TurnEngine().close(once)
+
+    assert twice.next_turn_proposals == once.next_turn_proposals
+    assert len(twice.next_turn_proposals) == 1
+
+
+def test_turn_preserves_preseeded_structured_proposals():
+    proposal = TurnProposal(
+        source_task_id="task_prior",
+        target_ref="gene.prior",
+        source_state=TaskState.BLOCKED,
+        recommended_operation=MicroOperation.FIND,
+        recommended_hat=AgentHat.GENE_SCOUT,
+        reason="prior blocked evidence",
+    )
+    turn = Turn(
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+        tasks=(make_task("task_000001", TaskState.COMPLETE),),
+        next_turn_proposals=(proposal,),
+    )
+
+    closed = TurnEngine().close(turn)
+
+    assert closed.next_turn_proposals == (proposal,)
 
 
 def test_turn_preserves_failed_blocked_and_quarantined_evidence():
