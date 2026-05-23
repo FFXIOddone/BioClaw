@@ -129,7 +129,7 @@ class ImmuneSystem:
         ).with_terminal(
             TaskState.QUARANTINED,
             reason=event.reason,
-            outputs=(antibody_ref,),
-            metadata={"immune_event_id": event.event_id},
+            outputs=(target_ref,),
+            metadata={"immune_event_id": event.event_id, "antibody_ref": antibody_ref},
         )
         return task, event

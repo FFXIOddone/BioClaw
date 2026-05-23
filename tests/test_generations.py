@@ -1,5 +1,6 @@
 import pytest
 
+from bioscaffold.immune import ImmuneSystem, PathogenFixture
 from bioscaffold.generations import Generation, GenerationEngine, GenerationStatus
 from bioscaffold.microtasks import AgentHat, BioScale, MicroOperation, MicroTask, TaskState
 from bioscaffold.molecules import MolecularStructure, MoleculeRegistry, MoleculeType
@@ -94,4 +95,48 @@ def test_generation_review_preserves_quarantine_and_immune_memory():
 
     assert reviewed.promoted_structures == ()
     assert reviewed.quarantined_structures == ("plasmid.injected.fake_done.v1",)
+    assert reviewed.immune_memory == ("antibody.fake_completion_marker",)
+
+
+def test_generation_review_quarantines_pathogen_target_without_promoting_plasmid():
+    registry = MoleculeRegistry()
+    fixture = PathogenFixture(
+        fixture_id="bacteria_fake_done",
+        defect_marker="fake_completion_marker",
+        injected_ref="plasmid.injected.fake_done.v1",
+        payload="fake done marker",
+    )
+    injection_task = fixture.inject(
+        registry,
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+    immune_task, _event = ImmuneSystem(known_markers={"fake_completion_marker"}).inspect(
+        registry,
+        target_ref="plasmid.injected.fake_done.v1",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+    )
+    turn = TurnEngine().close(
+        Turn(
+            turn_id="turn_000001",
+            generation_id="gen_000001",
+            organism_id="organism_000001",
+            tasks=(injection_task, immune_task),
+        )
+    )
+
+    reviewed = GenerationEngine().review(
+        Generation(
+            generation_id="gen_000001",
+            organism_id="organism_000001",
+            turns=(turn,),
+        ),
+        registry,
+    )
+
+    assert "plasmid.injected.fake_done.v1" in reviewed.quarantined_structures
+    assert "plasmid.injected.fake_done.v1" not in reviewed.promoted_structures
     assert reviewed.immune_memory == ("antibody.fake_completion_marker",)
