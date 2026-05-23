@@ -1143,7 +1143,7 @@ git commit -m "Add simulated immune hardening fixtures"
 - Create: `tests/test_generations.py`
 - Create: `bioscaffold/generations.py`
 
-- [ ] **Step 1: Write failing generation tests**
+- [x] **Step 1: Write failing generation tests**
 
 Create `tests/test_generations.py`:
 
@@ -1247,13 +1247,13 @@ def test_generation_review_preserves_quarantine_and_immune_memory():
     assert reviewed.immune_memory == ("antibody.fake_completion_marker",)
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `python -m pytest tests/test_generations.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'bioscaffold.generations'`.
 
-- [ ] **Step 3: Implement generation review**
+- [x] **Step 3: Implement generation review**
 
 Create `bioscaffold/generations.py`:
 
@@ -1314,13 +1314,13 @@ class GenerationEngine:
         )
 ```
 
-- [ ] **Step 4: Run generation tests**
+- [x] **Step 4: Run generation tests**
 
 Run: `python -m pytest tests/test_generations.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_generations.py bioscaffold/generations.py
