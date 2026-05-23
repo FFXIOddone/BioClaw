@@ -1,0 +1,21 @@
+bio_component:
+  name: rna-transcript
+  scale: molecular
+  biological_role: Carries copied genetic instructions for expression.
+  software_role: Active micro-task work order derived from a gene.
+  implementation_status: planned
+  inputs: [gene, promoter]
+  outputs: [artifact_fragment_task]
+  internal_state:
+    transcript_ref: Stable work-order reference.
+  sensors: [splice_status, immune_markers]
+  control_rules: [A transcript must be spliced and validated before translation.]
+  repair_rules: [Malformed transcripts are quarantined.]
+  recycle_rules: [Failed transcripts are archived with failure reason.]
+  replication_rules: [Transcript copies must preserve source gene reference.]
+  failure_modes: [malformed transcript, inactive clause, hostile marker]
+  safety_limits:
+    direct_file_write: false
+  tests_required: [test_pathogen_fixture_injects_inert_plasmid]
+  shutdown_condition: Transcript carries hostile or contradictory markers.
+  human_review_required: true

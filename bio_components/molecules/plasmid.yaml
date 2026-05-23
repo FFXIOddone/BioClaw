@@ -1,0 +1,22 @@
+bio_component:
+  name: plasmid
+  scale: molecular
+  biological_role: Carries extra genetic material outside the primary chromosome.
+  software_role: Injected external instruction bundle used by deterministic bacteria fixtures.
+  implementation_status: planned
+  inputs: [pathogen_fixture]
+  outputs: [defect_marker]
+  internal_state:
+    plasmid_ref: Stable injected fixture reference.
+  sensors: [defect_markers]
+  control_rules: [Plasmids are inert test data and cannot execute.]
+  repair_rules: [Unsafe plasmids are quarantined and fingerprinted.]
+  recycle_rules: [Quarantined plasmids are archived as immune evidence.]
+  replication_rules: [Plasmids do not replicate in the simulator.]
+  failure_modes: [fake completion marker, invalid lineage marker]
+  safety_limits:
+    executable: false
+    network_access: false
+  tests_required: [test_pathogen_fixture_injects_inert_plasmid]
+  shutdown_condition: Plasmid attempts to act outside fixture data.
+  human_review_required: true

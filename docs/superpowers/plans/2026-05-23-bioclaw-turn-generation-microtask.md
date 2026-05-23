@@ -40,7 +40,7 @@
 - Create: `bio_components/processes/splicing.yaml`
 - Create: `bio_components/processes/immune-response.yaml`
 
-- [ ] **Step 1: Write the failing registry expectation**
+- [x] **Step 1: Write the failing registry expectation**
 
 Replace the `names == {...}` assertion in `tests/test_component_cards.py` with this set:
 
@@ -70,13 +70,13 @@ Replace the `names == {...}` assertion in `tests/test_component_cards.py` with t
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_component_cards.py::test_all_repository_cards_are_valid -v`
 
 Expected: FAIL because the new card names are missing.
 
-- [ ] **Step 3: Add molecular and immune cards**
+- [x] **Step 3: Add molecular and immune cards**
 
 Create `bio_components/molecules/dna.yaml`:
 
@@ -315,13 +315,13 @@ bio_component:
   human_review_required: true
 ```
 
-- [ ] **Step 4: Run card tests**
+- [x] **Step 4: Run card tests**
 
 Run: `python -m pytest tests/test_component_cards.py tests/test_card_registry.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tests/test_component_cards.py bio_components/molecules bio_components/processes

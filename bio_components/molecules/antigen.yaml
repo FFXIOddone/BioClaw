@@ -1,0 +1,21 @@
+bio_component:
+  name: antigen
+  scale: molecular
+  biological_role: Marker recognized by immune response.
+  software_role: Marker that identifies a defect, contradiction, or hostile pattern.
+  implementation_status: planned
+  inputs: [structure_markers]
+  outputs: [immune_detection]
+  internal_state:
+    marker: Stable defect signature.
+  sensors: [marker_frequency]
+  control_rules: [Antigens are evidence markers, not executable behavior.]
+  repair_rules: [Unknown antigens are preserved for review.]
+  recycle_rules: [Resolved antigens are archived with antibody references.]
+  replication_rules: [Antigen records can be copied into immune memory.]
+  failure_modes: [false positive marker, missing evidence source]
+  safety_limits:
+    executable: false
+  tests_required: [test_white_blood_cell_quarantines_known_marker]
+  shutdown_condition: Antigen lacks a source structure.
+  human_review_required: true

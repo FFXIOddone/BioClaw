@@ -1,0 +1,21 @@
+bio_component:
+  name: gene
+  scale: molecular
+  biological_role: Encodes one heritable functional instruction.
+  software_role: Represents one requirement, capability, quality rule, constraint, or delivery rule.
+  implementation_status: planned
+  inputs: [dna]
+  outputs: [rna_transcript]
+  internal_state:
+    gene_ref: Stable product-work instruction reference.
+  sensors: [activation_status, contradiction_markers]
+  control_rules: [A gene must pass promoter checks before transcription.]
+  repair_rules: [Contradictory genes are quarantined for review.]
+  recycle_rules: [Rejected genes are archived as design evidence.]
+  replication_rules: [Gene copies must preserve source DNA reference.]
+  failure_modes: [contradictory requirement, missing source reference]
+  safety_limits:
+    autonomous_execution: false
+  tests_required: [test_generation_review_promotes_only_closed_turn_outputs]
+  shutdown_condition: Gene source cannot be traced.
+  human_review_required: true

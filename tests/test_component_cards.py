@@ -57,17 +57,26 @@ def test_all_repository_cards_are_valid():
     names = {card.name for card in registry}
 
     assert names == {
+        "antibody",
+        "antigen",
         "apoptosis",
         "autophagy",
         "cytoskeleton",
+        "dna",
         "endoplasmic-reticulum",
+        "gene",
         "golgi-apparatus",
+        "immune-response",
         "lysosome",
         "meiosis",
         "mitochondria",
         "mitosis",
         "nucleus",
         "plasma-membrane",
+        "plasmid",
         "ribosome",
+        "rna-transcript",
+        "splicing",
+        "transcription",
     }
     assert all(card.human_review_required for card in registry)

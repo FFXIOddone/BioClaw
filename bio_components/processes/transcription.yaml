@@ -1,0 +1,21 @@
+bio_component:
+  name: transcription
+  scale: molecular
+  biological_role: Copies DNA instructions into RNA.
+  software_role: Converts active genes into RNA micro-task work orders.
+  implementation_status: planned
+  inputs: [gene, promoter]
+  outputs: [rna_transcript]
+  internal_state:
+    source_gene_ref: Gene being copied.
+  sensors: [promoter_status]
+  control_rules: [Only active genes can be transcribed.]
+  repair_rules: [Inactive genes produce blocked tasks with evidence.]
+  recycle_rules: [Failed transcripts are archived.]
+  replication_rules: [Transcript must preserve source gene ref.]
+  failure_modes: [inactive promoter, missing gene]
+  safety_limits:
+    direct_execution: false
+  tests_required: [test_microtask_terminal_transition_records_outputs]
+  shutdown_condition: Source gene cannot be validated.
+  human_review_required: true

@@ -1,0 +1,22 @@
+bio_component:
+  name: dna
+  scale: molecular
+  biological_role: Stores durable inherited instructions.
+  software_role: Stores durable product blueprint, constraints, and inherited decisions.
+  implementation_status: planned
+  inputs: [product_intent, constraints]
+  outputs: [genes, promoters]
+  internal_state:
+    sequence: Ordered instruction records and checksums.
+  sensors: [checksum_status]
+  control_rules: [DNA records are durable and cannot be silently mutated.]
+  repair_rules: [Invalid DNA records become repair proposals.]
+  recycle_rules: [Superseded DNA records are archived with lineage metadata.]
+  replication_rules: [DNA can be copied only into an explicit transcript or snapshot.]
+  failure_modes: [silent mutation, missing lineage, invalid checksum]
+  safety_limits:
+    production_access: false
+    silent_mutation: false
+  tests_required: [test_molecule_registry_stores_and_finds_structures]
+  shutdown_condition: DNA checksum or lineage becomes contradictory.
+  human_review_required: true
