@@ -18,6 +18,8 @@ from bioscaffold.autonomy import (
     SeedAutonomousRequest,
     SeedGenerationPlan,
     SeedGenerationStatus,
+    SeedGenerationRecord,
+    SeedAutonomousRecord,
     SeedMicrotaskPlanner,
 )
 
@@ -186,6 +188,93 @@ def test_seed_planner_returns_terminal_when_bioclaw_already_ignored(tmp_path):
     assert plan.is_terminal is True
     assert plan.project_tasks == ()
     assert plan.verification_commands == ()
+
+
+def test_seed_autonomous_request_rejects_non_int_runtime_and_limit_fields(tmp_path):
+    payload = {
+        "session_id": "seed_session_000001",
+        "workspace_path": str(tmp_path),
+        "organism_id": "organism_seed",
+        "product_name": "Seed Baseline",
+        "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+    }
+
+    with pytest.raises(ValueError, match="max_runtime_seconds"):
+        SeedAutonomousRequest.from_payload({**payload, "max_runtime_seconds": "3600"})
+
+    with pytest.raises(ValueError, match="max_runtime_seconds"):
+        SeedAutonomousRequest.from_payload({**payload, "max_runtime_seconds": True})
+
+    with pytest.raises(ValueError, match="generation_limit"):
+        SeedAutonomousRequest.from_payload({**payload, "generation_limit": "4"})
+
+    with pytest.raises(ValueError, match="generation_limit"):
+        SeedAutonomousRequest.from_payload({**payload, "generation_limit": False})
+
+
+def test_seed_plan_record_payload_is_json_friendly_with_serialized_enums(tmp_path):
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(tmp_path),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+        }
+    )
+    plan = SeedMicrotaskPlanner().plan_generation(request, generation_index=1)
+
+    generation_record = SeedGenerationRecord(
+        generation_index=plan.generation_index,
+        project_tasks=plan.project_tasks,
+        verification_commands=plan.verification_commands,
+        status=SeedGenerationStatus.BLOCKED,
+        terminal=False,
+    )
+    seed_record = SeedAutonomousRecord(
+        session_id=request.session_id,
+        workspace_path=str(request.workspace_path),
+        organism_id=request.organism_id,
+        product_name=request.product_name,
+        seed_goal=request.seed_goal,
+        status=SeedGenerationStatus.POLICY_DENIED,
+        generation_limit=request.generation_limit,
+        max_runtime_seconds=request.max_runtime_seconds,
+        generations=(generation_record,),
+    )
+
+    plan_payload = plan.to_payload()
+    record_payload = generation_record.to_payload()
+    seed_payload = seed_record.to_payload()
+
+    json.dumps(plan_payload)
+    json.dumps(record_payload)
+    json.dumps(seed_payload)
+
+    assert plan_payload["project_tasks"] == [
+        {
+            "task_id": f"seed_generation_{plan.generation_index:06d}.gitignore",
+            "operation": "write_file",
+            "path": ".gitignore",
+            "content": ".bioclaw/\n",
+            "command": "",
+            "expected_output": "",
+        },
+    ] + [
+        {
+            "task_id": f"seed_generation_{plan.generation_index:06d}.baseline",
+            "operation": "run_command",
+            "path": "",
+            "content": "",
+            "command": "python -c \"print('no tests discovered')\"",
+            "expected_output": "",
+        }
+    ]
+    assert plan_payload["is_terminal"] is False
+    assert record_payload["status"] == SeedGenerationStatus.BLOCKED.value
+    assert record_payload["project_tasks"][0]["operation"] == "write_file"
+    assert seed_payload["status"] == SeedGenerationStatus.POLICY_DENIED.value
+    assert seed_payload["generations"][0]["status"] == SeedGenerationStatus.BLOCKED.value
 
 
 def test_autonomous_policy_denies_push_deploy_install_and_destructive_commands(tmp_path):
