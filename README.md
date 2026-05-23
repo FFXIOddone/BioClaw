@@ -1,14 +1,32 @@
 # BioScaffold OS
 
-BioScaffold OS is a planning-first, sandboxed software architecture inspired by human cell biology.
+BioScaffold OS is a sandboxed, cell-inspired software runtime simulator. The first foundation release models a single artificial cell with explicit genome, membrane, nucleus, ribosome, mitochondria, lysosome, checkpoint, audit, apoptosis, and mitosis boundaries.
 
-The current repository is documentation only. It defines the cellular analogy, safety boundaries, starter contracts, and a Superpowers-style foundation implementation plan.
+## Safety Model
 
-## Start Here
+The simulator does not perform uncontrolled replication, production deployment, permission escalation, audit deletion, network access, or live workflow integration. Mitosis creates a restricted child inside the local simulator only.
+
+## Development
+
+Install development dependencies:
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+Run tests:
+
+```powershell
+pytest -v
+```
+
+Validate the BioComponent registry:
+
+```powershell
+pytest tests/test_component_cards.py tests/test_card_registry.py -v
+```
+
+## Planning Artifacts
 
 - Design spec: `docs/superpowers/specs/2026-05-22-bioscaffold-os-design.md`
-- Foundation plan: `docs/superpowers/plans/2026-05-22-bioscaffold-os-foundation.md`
-
-## Current Status
-
-No implementation code exists yet. The next step is to execute the foundation plan task-by-task, starting with the BioComponent registry and single-cell simulator.
+- Foundation implementation plan: `docs/superpowers/plans/2026-05-22-bioscaffold-os-foundation.md`
