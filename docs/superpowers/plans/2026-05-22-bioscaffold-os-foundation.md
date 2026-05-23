@@ -1,6 +1,6 @@
 # BioScaffold OS Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the planning-first BioScaffold OS foundation: BioComponent registry validation, a deterministic single-cell simulator, safety governance, apoptosis/quarantine, autophagy dry runs, and sandboxed mitosis.
 
@@ -98,7 +98,7 @@ Responsibilities:
 - Create: `tests/test_component_cards.py`
 - Modify: `.git` repository state through `git init` only if no repository exists.
 
-- [ ] **Step 1: Initialize git if needed**
+- [x] **Step 1: Initialize git if needed**
 
 Run:
 
@@ -108,7 +108,7 @@ if (-not (Test-Path .git)) { git init }
 
 Expected: repository initialized or command exits with no output if `.git` already exists.
 
-- [ ] **Step 2: Create package metadata**
+- [x] **Step 2: Create package metadata**
 
 Create `pyproject.toml`:
 
@@ -137,7 +137,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 ```
 
-- [ ] **Step 3: Create package entry point**
+- [x] **Step 3: Create package entry point**
 
 Create `bioscaffold/__init__.py`:
 
@@ -150,7 +150,7 @@ from bioscaffold.types import CellRole, LifecyclePhase
 __all__ = ["BioCell", "CellRole", "LifecyclePhase"]
 ```
 
-- [ ] **Step 4: Add initial failing import test**
+- [x] **Step 4: Add initial failing import test**
 
 Create `tests/test_component_cards.py`:
 
@@ -161,7 +161,7 @@ def test_package_imports():
     assert bioscaffold.__all__ == ["BioCell", "CellRole", "LifecyclePhase"]
 ```
 
-- [ ] **Step 5: Run test to verify it fails**
+- [x] **Step 5: Run test to verify it fails**
 
 Run:
 
@@ -171,7 +171,7 @@ pytest tests/test_component_cards.py::test_package_imports -v
 
 Expected: FAIL because `bioscaffold.cell` and `bioscaffold.types` do not exist yet.
 
-- [ ] **Step 6: Commit skeleton**
+- [x] **Step 6: Commit skeleton**
 
 Run:
 
@@ -188,7 +188,7 @@ Expected: commit succeeds.
 - Create: `bioscaffold/types.py`
 - Modify: `tests/test_component_cards.py`
 
-- [ ] **Step 1: Add type contract tests**
+- [x] **Step 1: Add type contract tests**
 
 Replace `tests/test_component_cards.py` with:
 
@@ -243,7 +243,7 @@ def test_policy_decision_denial_has_reason():
     assert decision.reason == "outside membrane policy"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -253,7 +253,7 @@ pytest tests/test_component_cards.py -v
 
 Expected: FAIL because `bioscaffold.types` does not exist.
 
-- [ ] **Step 3: Implement core types**
+- [x] **Step 3: Implement core types**
 
 Create `bioscaffold/types.py`:
 
@@ -421,7 +421,7 @@ class SnapshotRef:
     genome_hash: str
 ```
 
-- [ ] **Step 4: Run tests to verify the type layer passes**
+- [x] **Step 4: Run tests to verify the type layer passes**
 
 Run:
 
@@ -431,7 +431,7 @@ pytest tests/test_component_cards.py -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit core types**
+- [x] **Step 5: Commit core types**
 
 Run:
 
@@ -448,7 +448,7 @@ Expected: commit succeeds.
 - Create: `bioscaffold/audit.py`
 - Create: `tests/test_audit.py`
 
-- [ ] **Step 1: Write failing audit tests**
+- [x] **Step 1: Write failing audit tests**
 
 Create `tests/test_audit.py`:
 
@@ -483,7 +483,7 @@ def test_audit_ledger_exposes_immutable_tuple():
     assert isinstance(ledger.events, tuple)
 ```
 
-- [ ] **Step 2: Run audit tests to verify failure**
+- [x] **Step 2: Run audit tests to verify failure**
 
 Run:
 
@@ -493,7 +493,7 @@ pytest tests/test_audit.py -v
 
 Expected: FAIL because `bioscaffold.audit` does not exist.
 
-- [ ] **Step 3: Implement audit ledger**
+- [x] **Step 3: Implement audit ledger**
 
 Create `bioscaffold/audit.py`:
 
@@ -532,7 +532,7 @@ class AuditLedger:
         return event
 ```
 
-- [ ] **Step 4: Run audit tests**
+- [x] **Step 4: Run audit tests**
 
 Run:
 
@@ -542,7 +542,7 @@ pytest tests/test_audit.py -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit audit ledger**
+- [x] **Step 5: Commit audit ledger**
 
 Run:
 
@@ -559,7 +559,7 @@ Expected: commit succeeds.
 - Create: `bioscaffold/cards.py`
 - Create: `tests/test_card_registry.py`
 
-- [ ] **Step 1: Write failing registry tests**
+- [x] **Step 1: Write failing registry tests**
 
 Create `tests/test_card_registry.py`:
 
@@ -678,7 +678,7 @@ bio_component:
     assert [card.name for card in registry] == ["nucleus"]
 ```
 
-- [ ] **Step 2: Run registry tests to verify failure**
+- [x] **Step 2: Run registry tests to verify failure**
 
 Run:
 
@@ -688,7 +688,7 @@ pytest tests/test_card_registry.py -v
 
 Expected: FAIL because `bioscaffold.cards` does not exist.
 
-- [ ] **Step 3: Implement card schema and loader**
+- [x] **Step 3: Implement card schema and loader**
 
 Create `bioscaffold/cards.py`:
 
@@ -760,7 +760,7 @@ def load_registry(root: Path) -> list[BioComponentCard]:
     return cards
 ```
 
-- [ ] **Step 4: Run registry tests**
+- [x] **Step 4: Run registry tests**
 
 Run:
 
@@ -770,7 +770,7 @@ pytest tests/test_card_registry.py -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit card registry**
+- [x] **Step 5: Commit card registry**
 
 Run:
 
@@ -798,7 +798,7 @@ Expected: commit succeeds.
 - Create: `bio_components/processes/apoptosis.yaml`
 - Modify: `tests/test_component_cards.py`
 
-- [ ] **Step 1: Add real registry test**
+- [x] **Step 1: Add real registry test**
 
 Append to `tests/test_component_cards.py`:
 
@@ -830,7 +830,7 @@ def test_all_repository_cards_are_valid():
     assert all(card.human_review_required for card in registry)
 ```
 
-- [ ] **Step 2: Run card test to verify failure**
+- [x] **Step 2: Run card test to verify failure**
 
 Run:
 
@@ -840,7 +840,7 @@ pytest tests/test_component_cards.py::test_all_repository_cards_are_valid -v
 
 Expected: FAIL because `bio_components` does not exist.
 
-- [ ] **Step 3: Create card directories**
+- [x] **Step 3: Create card directories**
 
 Run:
 
@@ -850,7 +850,7 @@ New-Item -ItemType Directory -Force -Path bio_components\organelles,bio_componen
 
 Expected: directories exist.
 
-- [ ] **Step 4: Create nucleus card**
+- [x] **Step 4: Create nucleus card**
 
 Create `bio_components/organelles/nucleus.yaml`:
 
@@ -882,7 +882,7 @@ bio_component:
   human_review_required: true
 ```
 
-- [ ] **Step 5: Create remaining cards**
+- [x] **Step 5: Create remaining cards**
 
 Create each listed YAML file with the same required field structure and these exact roles:
 
@@ -1158,7 +1158,7 @@ bio_component:
   human_review_required: true
 ```
 
-- [ ] **Step 6: Run repository card tests**
+- [x] **Step 6: Run repository card tests**
 
 Run:
 
@@ -1168,7 +1168,7 @@ pytest tests/test_component_cards.py tests/test_card_registry.py -v
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit initial atlas**
+- [x] **Step 7: Commit initial atlas**
 
 Run:
 
@@ -1188,7 +1188,7 @@ Expected: commit succeeds.
 - Create: `bioscaffold/mitochondria.py`
 - Create: `tests/test_runtime_services.py`
 
-- [ ] **Step 1: Write failing runtime service tests**
+- [x] **Step 1: Write failing runtime service tests**
 
 Create `tests/test_runtime_services.py`:
 
@@ -1276,7 +1276,7 @@ def test_mitochondria_reports_remaining_budget_after_reservation():
     assert report.memory_mb_remaining == 120
 ```
 
-- [ ] **Step 2: Run runtime tests to verify failure**
+- [x] **Step 2: Run runtime tests to verify failure**
 
 Run:
 
@@ -1286,7 +1286,7 @@ pytest tests/test_runtime_services.py -v
 
 Expected: FAIL because runtime service modules do not exist.
 
-- [ ] **Step 3: Implement genome service**
+- [x] **Step 3: Implement genome service**
 
 Create `bioscaffold/genome.py`:
 
@@ -1328,7 +1328,7 @@ class Genome:
         )
 ```
 
-- [ ] **Step 4: Implement nucleus service**
+- [x] **Step 4: Implement nucleus service**
 
 Create `bioscaffold/nucleus.py`:
 
@@ -1375,7 +1375,7 @@ class Nucleus:
         return PolicyDecision.allow(f"phase changed to {target_phase.value}")
 ```
 
-- [ ] **Step 5: Implement membrane service**
+- [x] **Step 5: Implement membrane service**
 
 Create `bioscaffold/membrane.py`:
 
@@ -1403,7 +1403,7 @@ class Membrane:
         return ValidationResult(True)
 ```
 
-- [ ] **Step 6: Implement mitochondria service**
+- [x] **Step 6: Implement mitochondria service**
 
 Create `bioscaffold/mitochondria.py`:
 
@@ -1455,7 +1455,7 @@ class Mitochondria:
         )
 ```
 
-- [ ] **Step 7: Run runtime service tests**
+- [x] **Step 7: Run runtime service tests**
 
 Run:
 
@@ -1465,7 +1465,7 @@ pytest tests/test_runtime_services.py -v
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit runtime services**
+- [x] **Step 8: Commit runtime services**
 
 Run:
 
@@ -1483,7 +1483,7 @@ Expected: commit succeeds.
 - Create: `bioscaffold/cytoskeleton.py`
 - Modify: `tests/test_runtime_services.py`
 
-- [ ] **Step 1: Add failing ribosome and cytoskeleton tests**
+- [x] **Step 1: Add failing ribosome and cytoskeleton tests**
 
 Append to `tests/test_runtime_services.py`:
 
@@ -1522,7 +1522,7 @@ def test_cytoskeleton_rejects_duplicate_route():
     assert second.reason == "route ribosome->lysosome already exists"
 ```
 
-- [ ] **Step 2: Run selected tests to verify failure**
+- [x] **Step 2: Run selected tests to verify failure**
 
 Run:
 
@@ -1532,7 +1532,7 @@ pytest tests/test_runtime_services.py::test_ribosome_executes_allowed_fake_job t
 
 Expected: FAIL because `bioscaffold.ribosome` and `bioscaffold.cytoskeleton` do not exist.
 
-- [ ] **Step 3: Implement ribosome**
+- [x] **Step 3: Implement ribosome**
 
 Create `bioscaffold/ribosome.py`:
 
@@ -1569,7 +1569,7 @@ class Ribosome:
         return JobResult(job.job_id, False, {}, f"job type {job_type} has no executor")
 ```
 
-- [ ] **Step 4: Implement cytoskeleton**
+- [x] **Step 4: Implement cytoskeleton**
 
 Create `bioscaffold/cytoskeleton.py`:
 
@@ -1595,7 +1595,7 @@ class Cytoskeleton:
         return PolicyDecision.allow(f"route {source}->{target} registered")
 ```
 
-- [ ] **Step 5: Run runtime service tests**
+- [x] **Step 5: Run runtime service tests**
 
 Run:
 
@@ -1605,7 +1605,7 @@ pytest tests/test_runtime_services.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit execution and topology services**
+- [x] **Step 6: Commit execution and topology services**
 
 Run:
 
@@ -1622,7 +1622,7 @@ Expected: commit succeeds.
 - Create: `bioscaffold/lysosome.py`
 - Create: `tests/test_apoptosis_protocol.py`
 
-- [ ] **Step 1: Write failing lysosome tests**
+- [x] **Step 1: Write failing lysosome tests**
 
 Create `tests/test_apoptosis_protocol.py`:
 
@@ -1651,7 +1651,7 @@ def test_lysosome_dry_run_preserves_items():
     assert len(lysosome.archives) == 1
 ```
 
-- [ ] **Step 2: Run lysosome tests to verify failure**
+- [x] **Step 2: Run lysosome tests to verify failure**
 
 Run:
 
@@ -1661,7 +1661,7 @@ pytest tests/test_apoptosis_protocol.py -v
 
 Expected: FAIL because `bioscaffold.lysosome` does not exist.
 
-- [ ] **Step 3: Add recycle receipt type**
+- [x] **Step 3: Add recycle receipt type**
 
 Append to `bioscaffold/types.py`:
 
@@ -1673,7 +1673,7 @@ class RecycleReceipt:
     metadata: dict[str, Any]
 ```
 
-- [ ] **Step 4: Implement lysosome**
+- [x] **Step 4: Implement lysosome**
 
 Create `bioscaffold/lysosome.py`:
 
@@ -1705,7 +1705,7 @@ class Lysosome:
         }
 ```
 
-- [ ] **Step 5: Run lysosome tests**
+- [x] **Step 5: Run lysosome tests**
 
 Run:
 
@@ -1715,7 +1715,7 @@ pytest tests/test_apoptosis_protocol.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit lysosome dry run**
+- [x] **Step 6: Commit lysosome dry run**
 
 Run:
 
@@ -1733,7 +1733,7 @@ Expected: commit succeeds.
 - Create: `bioscaffold/checkpoints.py`
 - Create: `tests/test_cell_cycle.py`
 
-- [ ] **Step 1: Write failing lifecycle tests**
+- [x] **Step 1: Write failing lifecycle tests**
 
 Create `tests/test_cell_cycle.py`:
 
@@ -1787,7 +1787,7 @@ def test_checkpoint_suite_rejects_low_health():
     assert result.reason == "health score below threshold"
 ```
 
-- [ ] **Step 2: Run lifecycle tests to verify failure**
+- [x] **Step 2: Run lifecycle tests to verify failure**
 
 Run:
 
@@ -1797,7 +1797,7 @@ pytest tests/test_cell_cycle.py -v
 
 Expected: FAIL because lifecycle modules do not exist.
 
-- [ ] **Step 3: Implement lifecycle policy**
+- [x] **Step 3: Implement lifecycle policy**
 
 Create `bioscaffold/lifecycle.py`:
 
@@ -1834,7 +1834,7 @@ class LifecyclePolicy:
         return PolicyDecision.deny(f"transition {current.value}->{target.value} is not allowed")
 ```
 
-- [ ] **Step 4: Implement checkpoint suite**
+- [x] **Step 4: Implement checkpoint suite**
 
 Create `bioscaffold/checkpoints.py`:
 
@@ -1867,7 +1867,7 @@ class CheckpointSuite:
         return CheckpointResult(True, "all checkpoints passed")
 ```
 
-- [ ] **Step 5: Run lifecycle tests**
+- [x] **Step 5: Run lifecycle tests**
 
 Run:
 
@@ -1877,7 +1877,7 @@ pytest tests/test_cell_cycle.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit lifecycle and checkpoints**
+- [x] **Step 6: Commit lifecycle and checkpoints**
 
 Run:
 
@@ -1895,7 +1895,7 @@ Expected: commit succeeds.
 - Modify: `tests/test_cell_cycle.py`
 - Modify: `tests/test_apoptosis_protocol.py`
 
-- [ ] **Step 1: Add failing BioCell tests**
+- [x] **Step 1: Add failing BioCell tests**
 
 Append to `tests/test_cell_cycle.py`:
 
@@ -1945,7 +1945,7 @@ def test_apoptosis_stops_new_work_and_records_reason():
     assert cell.audit_events[-1].event_type == "job_rejected"
 ```
 
-- [ ] **Step 2: Run BioCell tests to verify failure**
+- [x] **Step 2: Run BioCell tests to verify failure**
 
 Run:
 
@@ -1955,7 +1955,7 @@ pytest tests/test_cell_cycle.py tests/test_apoptosis_protocol.py -v
 
 Expected: FAIL because `bioscaffold.cell` does not exist.
 
-- [ ] **Step 3: Implement BioCell**
+- [x] **Step 3: Implement BioCell**
 
 Create `bioscaffold/cell.py`:
 
@@ -2114,7 +2114,7 @@ class BioCell:
         return {"phase": self.phase, "reason": reason}
 ```
 
-- [ ] **Step 4: Run BioCell tests**
+- [x] **Step 4: Run BioCell tests**
 
 Run:
 
@@ -2124,7 +2124,7 @@ pytest tests/test_cell_cycle.py tests/test_apoptosis_protocol.py -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Run import test again**
+- [x] **Step 5: Run import test again**
 
 Run:
 
@@ -2134,7 +2134,7 @@ pytest tests/test_component_cards.py::test_package_imports -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit BioCell runtime**
+- [x] **Step 6: Commit BioCell runtime**
 
 Run:
 
@@ -2153,7 +2153,7 @@ Expected: commit succeeds.
 - Modify: `bioscaffold/types.py`
 - Modify: `bioscaffold/cell.py`
 
-- [ ] **Step 1: Write failing mitosis tests**
+- [x] **Step 1: Write failing mitosis tests**
 
 Create `tests/test_mitosis_protocol.py`:
 
@@ -2200,7 +2200,7 @@ def test_mitosis_allows_one_child_per_parent_cycle():
     assert second.reason == "max children per cycle reached"
 ```
 
-- [ ] **Step 2: Run mitosis tests to verify failure**
+- [x] **Step 2: Run mitosis tests to verify failure**
 
 Run:
 
@@ -2210,7 +2210,7 @@ pytest tests/test_mitosis_protocol.py -v
 
 Expected: FAIL because `bioscaffold.reproduction` does not exist.
 
-- [ ] **Step 3: Add replication result type**
+- [x] **Step 3: Add replication result type**
 
 Append to `bioscaffold/types.py`:
 
@@ -2222,7 +2222,7 @@ class ReplicationResult:
     child: Any | None = None
 ```
 
-- [ ] **Step 4: Add child construction method to BioCell**
+- [x] **Step 4: Add child construction method to BioCell**
 
 Append this method inside the `BioCell` class in `bioscaffold/cell.py`:
 
@@ -2257,7 +2257,7 @@ Append this method inside the `BioCell` class in `bioscaffold/cell.py`:
         return child
 ```
 
-- [ ] **Step 5: Implement reproduction controller**
+- [x] **Step 5: Implement reproduction controller**
 
 Create `bioscaffold/reproduction.py`:
 
@@ -2305,7 +2305,7 @@ class ReproductionController:
         return ReplicationResult(True, "child created", child)
 ```
 
-- [ ] **Step 6: Run mitosis tests**
+- [x] **Step 6: Run mitosis tests**
 
 Run:
 
@@ -2315,7 +2315,7 @@ pytest tests/test_mitosis_protocol.py -v
 
 Expected: PASS.
 
-- [ ] **Step 7: Run all tests**
+- [x] **Step 7: Run all tests**
 
 Run:
 
@@ -2325,7 +2325,7 @@ pytest -v
 
 Expected: PASS for all tests.
 
-- [ ] **Step 8: Commit mitosis simulator**
+- [x] **Step 8: Commit mitosis simulator**
 
 Run:
 
@@ -2342,7 +2342,7 @@ Expected: commit succeeds.
 - Create: `README.md`
 - Modify: `docs/superpowers/specs/2026-05-22-bioscaffold-os-design.md` only if implementation changed a contract during execution.
 
-- [ ] **Step 1: Create README**
+- [x] **Step 1: Create README**
 
 Create `README.md`:
 
@@ -2381,7 +2381,7 @@ pytest tests/test_component_cards.py tests/test_card_registry.py -v
 - Foundation implementation plan: `docs/superpowers/plans/2026-05-22-bioscaffold-os-foundation.md`
 ````
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
 Run:
 
@@ -2397,7 +2397,7 @@ collected at least 25 items
 all tests pass
 ```
 
-- [ ] **Step 3: Check planning docs for forbidden placeholders**
+- [x] **Step 3: Check planning docs for forbidden placeholders**
 
 Run:
 
@@ -2416,7 +2416,7 @@ Select-String -Path docs\superpowers\specs\*.md,docs\superpowers\plans\*.md -Pat
 
 Expected: no matches.
 
-- [ ] **Step 4: Commit README and final verification notes**
+- [x] **Step 4: Commit README and final verification notes**
 
 Run:
 
