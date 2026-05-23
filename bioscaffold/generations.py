@@ -41,6 +41,13 @@ class GenerationEngine:
                 if task.state is TaskState.QUARANTINED:
                     quarantined.extend(task.outputs or (task.target_ref,))
 
+        quarantined_refs = set(quarantined)
+        promoted = [
+            ref
+            for ref in promoted
+            if ref not in quarantined_refs and self._is_promotable(registry, ref)
+        ]
+
         immune_memory = tuple(
             structure.ref
             for structure in registry.find_by_type(MoleculeType.ANTIBODY)
@@ -52,3 +59,14 @@ class GenerationEngine:
             quarantined_structures=tuple(dict.fromkeys(quarantined)),
             immune_memory=immune_memory,
         )
+
+    def _is_promotable(self, registry: MoleculeRegistry, ref: str) -> bool:
+        try:
+            structure = registry.get(ref)
+        except KeyError:
+            return True
+        if structure.molecule_type in {MoleculeType.PLASMID, MoleculeType.ANTIGEN}:
+            return False
+        if "pathogen_fixture" in structure.markers:
+            return False
+        return True

@@ -88,7 +88,7 @@ git commit -m "Add growth cycle component card"
 - Modify: `bioscaffold/immune.py`
 - Modify: `bioscaffold/generations.py`
 
-- [ ] **Step 1: Write failing generation hardening test**
+- [x] **Step 1: Write failing generation hardening test**
 
 Append to `tests/test_generations.py`:
 
@@ -140,13 +140,13 @@ def test_generation_review_quarantines_pathogen_target_without_promoting_plasmid
     assert reviewed.immune_memory == ("antibody.fake_completion_marker",)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_generations.py::test_generation_review_quarantines_pathogen_target_without_promoting_plasmid -v`
 
 Expected: FAIL because the immune task currently outputs the antibody ref and generation review promotes the injected plasmid.
 
-- [ ] **Step 3: Preserve quarantined target refs**
+- [x] **Step 3: Preserve quarantined target refs**
 
 In `bioscaffold/immune.py`, change the quarantined task output from the antibody ref to the target ref and store the antibody in metadata:
 
@@ -169,7 +169,7 @@ In `bioscaffold/immune.py`, change the quarantined task output from the antibody
         )
 ```
 
-- [ ] **Step 4: Prevent pathogen promotion**
+- [x] **Step 4: Prevent pathogen promotion**
 
 In `bioscaffold/generations.py`, filter promotions after quarantine collection:
 
@@ -197,13 +197,13 @@ Add this helper to `GenerationEngine`:
         return True
 ```
 
-- [ ] **Step 5: Run generation tests**
+- [x] **Step 5: Run generation tests**
 
 Run: `python -m pytest tests/test_generations.py tests/test_molecules_immune.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add tests/test_generations.py bioscaffold/immune.py bioscaffold/generations.py
