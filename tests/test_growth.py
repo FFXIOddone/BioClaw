@@ -1,6 +1,7 @@
 from bioscaffold.generations import GenerationStatus
 from bioscaffold.growth import GrowthCycleRunner
 from bioscaffold.immune import ImmuneSystem, PathogenFixture
+from bioscaffold.microtasks import AgentHat, BioScale, MicroOperation, MicroTask, TaskState
 from bioscaffold.molecules import MolecularStructure, MoleculeRegistry, MoleculeType
 from bioscaffold.organism import OrganismStatus, ProductOrganism
 from bioscaffold.turns import TurnStatus
@@ -50,6 +51,71 @@ def test_growth_cycle_runs_expression_and_clean_delivery_path():
     assert "protein.auth.password_policy.v1" in result.generation.promoted_structures
     assert result.organism.status is OrganismStatus.GROWING
     assert archived.status is OrganismStatus.ARCHIVED
+
+
+def test_growth_cycle_includes_project_prefix_tasks_in_same_turn():
+    prefix = MicroTask(
+        task_id="task.workflow.find_gene.auth.password_policy",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+        scale=BioScale.MOLECULAR,
+        operation=MicroOperation.FIND,
+        target_ref="gene.auth.password_policy",
+        agent_hat=AgentHat.GENE_SCOUT,
+        expected_output="gene_ref",
+    ).with_terminal(
+        TaskState.COMPLETE,
+        reason="project gene located",
+        outputs=("gene.auth.password_policy",),
+    )
+
+    result = GrowthCycleRunner().run_generation(
+        registry=seed_expression_registry(),
+        organism=ProductOrganism.birth(
+            organism_id="organism_000001",
+            product_name="Authentication Module",
+        ),
+        gene_ref="gene.auth.password_policy",
+        promoter_ref="promoter.auth.password_policy",
+        generation_id="gen_000001",
+        turn_id="turn_000001",
+        prefix_tasks=(prefix,),
+    )
+
+    assert result.turn.tasks[0] == prefix
+    assert "protein.auth.password_policy.v1" in result.generation.promoted_structures
+
+
+def test_growth_cycle_prefix_blocker_stops_expression():
+    prefix = MicroTask(
+        task_id="task.workflow.find_gene.missing",
+        turn_id="turn_000001",
+        generation_id="gen_000001",
+        organism_id="organism_000001",
+        scale=BioScale.MOLECULAR,
+        operation=MicroOperation.FIND,
+        target_ref="gene.missing",
+        agent_hat=AgentHat.GENE_SCOUT,
+        expected_output="gene_ref",
+    ).with_terminal(TaskState.BLOCKED, reason="missing project gene")
+
+    result = GrowthCycleRunner().run_generation(
+        registry=seed_expression_registry(),
+        organism=ProductOrganism.birth(
+            organism_id="organism_000001",
+            product_name="Authentication Module",
+        ),
+        gene_ref="gene.missing",
+        promoter_ref="promoter.auth.password_policy",
+        generation_id="gen_000001",
+        turn_id="turn_000001",
+        prefix_tasks=(prefix,),
+    )
+
+    assert result.turn.tasks == (prefix,)
+    assert result.generation.blocked_tasks == ("task.workflow.find_gene.missing",)
+    assert result.organism.status is OrganismStatus.BLOCKED
 
 
 def test_growth_cycle_injects_bacteria_and_quarantines_with_immune_memory():

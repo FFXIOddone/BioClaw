@@ -2,6 +2,7 @@ import pytest
 
 from bioscaffold.generations import Generation, GenerationStatus
 from bioscaffold.immune import ImmuneSystem
+from bioscaffold.microtasks import AgentHat, MicroOperation, TaskState
 from bioscaffold.molecules import MolecularStructure, MoleculeRegistry, MoleculeType
 from bioscaffold.organism import OrganismStatus, ProductOrganism
 from bioscaffold.turns import TurnStatus
@@ -9,6 +10,7 @@ from bioscaffold.workflow import (
     ActiveOrganismRegistry,
     ProductWorkflowPlan,
     ProductWorkflowRunner,
+    ProjectWorkflowMicroTaskFactory,
     WorkflowGenePlan,
     WorkflowTerminalState,
 )
@@ -74,6 +76,52 @@ def test_product_workflow_runs_clean_product_to_archived_terminal_state():
     assert "protein.auth.password_policy.v1" in result.organism.delivered_outputs
     assert [turn.status for turn in result.turns] == [TurnStatus.CLOSED]
     assert [generation.status for generation in result.generations] == [GenerationStatus.REVIEWED]
+
+
+def test_product_workflow_records_project_microtasks_for_birth_growth_and_death():
+    result = ProductWorkflowRunner().run_to_terminal(
+        registry=seed_registry(),
+        plan=ProductWorkflowPlan(
+            organism_id="organism_000001",
+            product_name="Authentication Module",
+            genes=(WorkflowGenePlan("gene.auth.password_policy", "promoter.auth.password_policy"),),
+        ),
+    )
+    operations = [(task.operation, task.target_ref) for task in result.project_microtasks]
+
+    assert operations[:3] == [
+        (MicroOperation.RECORD, "organism_000001"),
+        (MicroOperation.FIND, "gene.auth.password_policy"),
+        (MicroOperation.FIND, "promoter.auth.password_policy"),
+    ]
+    assert (MicroOperation.TRANSCRIBE, "gene.auth.password_policy") in operations
+    assert (MicroOperation.SPLICE, "transcript.auth.password_policy.v1") in operations
+    assert (MicroOperation.TRANSLATE, "spliced.auth.password_policy.v1") in operations
+    assert operations[-2:] == [
+        (MicroOperation.PROMOTE, "organism_000001"),
+        (MicroOperation.ARCHIVE, "organism_000001"),
+    ]
+    assert all("docs/superpowers" not in task.target_ref for task in result.project_microtasks)
+    assert all("commit" not in task.task_id for task in result.project_microtasks)
+
+
+def test_product_workflow_missing_gene_blocks_with_project_microtask_evidence():
+    result = ProductWorkflowRunner().run_to_terminal(
+        registry=seed_registry(),
+        plan=ProductWorkflowPlan(
+            organism_id="organism_000001",
+            product_name="Authentication Module",
+            genes=(WorkflowGenePlan("gene.missing", "promoter.auth.password_policy"),),
+        ),
+    )
+
+    assert result.terminal_state is WorkflowTerminalState.BLOCKED
+    assert result.organism.status is OrganismStatus.BLOCKED
+    assert result.turns[0].tasks[0].task_id == "task.workflow.find_gene.missing"
+    assert result.turns[0].tasks[0].state is TaskState.BLOCKED
+    assert MicroOperation.TRANSCRIBE not in [task.operation for task in result.turns[0].tasks]
+    assert result.project_microtasks[-1].operation is MicroOperation.RECORD
+    assert result.project_microtasks[-1].agent_hat is AgentHat.MEMORY_CELL
 
 
 def test_product_workflow_stops_quarantined_before_delivery():
@@ -155,3 +203,19 @@ def test_active_organism_registry_rejects_second_active_product():
     active.finish(organism.integrate_generation(generation).deliver().archive())
 
     assert active.active_organism_id is None
+
+
+def test_project_workflow_microtask_factory_finds_real_project_structures():
+    tasks = ProjectWorkflowMicroTaskFactory().discovery_tasks(
+        seed_registry(),
+        gene=WorkflowGenePlan("gene.auth.password_policy", "promoter.auth.password_policy"),
+        organism_id="organism_000001",
+        generation_id="gen_000001",
+        turn_id="turn_000001",
+    )
+
+    assert [task.task_id for task in tasks] == [
+        "task.workflow.find_gene.auth.password_policy",
+        "task.workflow.find_promoter.auth.password_policy",
+    ]
+    assert [task.state for task in tasks] == [TaskState.COMPLETE, TaskState.COMPLETE]

@@ -16,6 +16,7 @@ from bioscaffold.workflow import (
     ProductWorkflowPlan,
     ProductWorkflowResult,
     ProductWorkflowRunner,
+    ProjectWorkflowMicroTaskFactory,
     WorkflowGenePlan,
     WorkflowTerminalState,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "ProductWorkflowPlan",
     "ProductWorkflowResult",
     "ProductWorkflowRunner",
+    "ProjectWorkflowMicroTaskFactory",
     "TaskState",
     "Turn",
     "TurnEngine",

@@ -35,6 +35,7 @@ def test_package_imports():
         "ProductWorkflowPlan",
         "ProductWorkflowResult",
         "ProductWorkflowRunner",
+        "ProjectWorkflowMicroTaskFactory",
         "TaskState",
         "Turn",
         "TurnEngine",
