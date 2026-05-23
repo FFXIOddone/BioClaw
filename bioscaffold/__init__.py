@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+from bioscaffold.all_generation import AllGenerationProductRunner, AllGenerationWorkflowResult, ProductBuildRequest
+from bioscaffold.assembly import ProductAssemblyEngine, ProductAssemblyResult
 from bioscaffold.cell import BioCell
+from bioscaffold.compiler import CompiledProductGenome, ProductGenomeCompiler, ProductRequirement
+from bioscaffold.delivery import DeliveryPackager, DeliveryReport
 from bioscaffold.expression import ExpressionEngine
 from bioscaffold.generations import Generation, GenerationEngine
 from bioscaffold.growth import GrowthCycleResult, GrowthCycleRunner
 from bioscaffold.microtasks import AgentHat, BioScale, MicroOperation, MicroTask, TaskState
 from bioscaffold.molecules import MolecularStructure, MoleculeRegistry, MoleculeType
 from bioscaffold.organism import OrganismStatus, ProductOrganism
+from bioscaffold.proposals import ProposalPlanner
 from bioscaffold.turns import Turn, TurnEngine, TurnProposal
 from bioscaffold.types import CellRole, LifecyclePhase
+from bioscaffold.validation import ArtifactValidationEngine, ArtifactValidationResult
 from bioscaffold.workflow import (
     ActiveOrganismRegistry,
     ProductWorkflowPlan,
@@ -24,9 +30,16 @@ from bioscaffold.workflow import (
 __all__ = [
     "ActiveOrganismRegistry",
     "AgentHat",
+    "AllGenerationProductRunner",
+    "AllGenerationWorkflowResult",
+    "ArtifactValidationEngine",
+    "ArtifactValidationResult",
     "BioCell",
     "BioScale",
     "CellRole",
+    "CompiledProductGenome",
+    "DeliveryPackager",
+    "DeliveryReport",
     "ExpressionEngine",
     "Generation",
     "GenerationEngine",
@@ -39,11 +52,17 @@ __all__ = [
     "MoleculeRegistry",
     "MoleculeType",
     "OrganismStatus",
+    "ProductAssemblyEngine",
+    "ProductAssemblyResult",
+    "ProductBuildRequest",
+    "ProductGenomeCompiler",
     "ProductOrganism",
+    "ProductRequirement",
     "ProductWorkflowPlan",
     "ProductWorkflowResult",
     "ProductWorkflowRunner",
     "ProjectWorkflowMicroTaskFactory",
+    "ProposalPlanner",
     "TaskState",
     "Turn",
     "TurnEngine",
