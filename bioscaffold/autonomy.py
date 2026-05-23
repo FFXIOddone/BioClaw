@@ -37,6 +37,7 @@ class AutonomousSessionStatus(str, Enum):
 class SeedGenerationStatus(str, Enum):
     PLANNED = "planned"
     COMPLETED = "completed"
+    PAUSED = "paused"
     BLOCKED = "blocked"
     POLICY_DENIED = "policy_denied"
     TIMEOUT = "timeout"
@@ -145,6 +146,8 @@ class SeedAutonomousRequest:
     allow_dirty_start: bool = False
     run_until_runtime_exhausted: bool = False
     turn_delay_seconds: int = 0
+    resume_existing_seed: bool = False
+    generation_batch_size: int = 0
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "SeedAutonomousRequest":
@@ -154,6 +157,9 @@ class SeedAutonomousRequest:
         turn_delay_seconds = _optional_int(payload, "turn_delay_seconds", 0)
         if turn_delay_seconds < 0:
             raise ValueError("turn_delay_seconds must be greater than or equal to zero")
+        generation_batch_size = _optional_int(payload, "generation_batch_size", 0)
+        if generation_batch_size < 0:
+            raise ValueError("generation_batch_size must be greater than or equal to zero")
 
         return cls(
             session_id=_required_string(payload, "session_id"),
@@ -170,6 +176,8 @@ class SeedAutonomousRequest:
             allow_dirty_start=_optional_bool(payload, "allow_dirty_start", False),
             run_until_runtime_exhausted=_optional_bool(payload, "run_until_runtime_exhausted", False),
             turn_delay_seconds=turn_delay_seconds,
+            resume_existing_seed=_optional_bool(payload, "resume_existing_seed", False),
+            generation_batch_size=generation_batch_size,
         )
 
 
@@ -230,12 +238,28 @@ class SeedAutonomousController:
     def run(self, request: SeedAutonomousRequest) -> SeedAutonomousRecord:
         workspace_path = request.workspace_path.resolve()
         seed_session_dir = (workspace_path / ".bioclaw" / "seeds" / request.session_id).resolve()
-        generations: list[SeedGenerationRecord] = []
+        summary_path = seed_session_dir / "seed-session.json"
+        existing_record = None
+        if request.resume_existing_seed and summary_path.exists():
+            existing_record = _read_seed_record(summary_path)
+            if existing_record.status is not SeedGenerationStatus.PAUSED:
+                return existing_record
+
+        generations: list[SeedGenerationRecord] = list(existing_record.generations) if existing_record else []
         started_at = self.clock()
 
-        status = SeedGenerationStatus.GENERATION_LIMIT_REACHED if request.generation_limit <= 0 else SeedGenerationStatus.COMPLETED
+        if request.generation_limit <= 0 or len(generations) >= request.generation_limit:
+            status = SeedGenerationStatus.GENERATION_LIMIT_REACHED
+        else:
+            status = SeedGenerationStatus.COMPLETED
 
-        for generation_index in range(1, request.generation_limit + 1):
+        first_generation_index = max((generation.generation_index for generation in generations), default=0) + 1
+        new_generation_count = 0
+
+        for generation_index in range(first_generation_index, request.generation_limit + 1):
+            if request.generation_batch_size > 0 and new_generation_count >= request.generation_batch_size:
+                status = SeedGenerationStatus.PAUSED
+                break
             if request.run_until_runtime_exhausted and self._runtime_exhausted(request, started_at):
                 status = SeedGenerationStatus.COMPLETED
                 break
@@ -293,6 +317,10 @@ class SeedAutonomousController:
                     inner_status=inner_status.value,
                 )
                 generations.append(generation)
+                new_generation_count += 1
+                if request.generation_batch_size > 0 and new_generation_count >= request.generation_batch_size:
+                    status = SeedGenerationStatus.PAUSED
+                    break
                 if request.run_until_runtime_exhausted:
                     if self._runtime_exhausted(request, started_at):
                         status = SeedGenerationStatus.COMPLETED
@@ -316,6 +344,7 @@ class SeedAutonomousController:
                 inner_status=inner_status.value,
             )
             generations.append(generation)
+            new_generation_count += 1
             status = mapped_status
             break
 
@@ -335,9 +364,11 @@ class SeedAutonomousController:
             max_runtime_seconds=request.max_runtime_seconds,
             run_until_runtime_exhausted=request.run_until_runtime_exhausted,
             turn_delay_seconds=request.turn_delay_seconds,
+            resume_existing_seed=request.resume_existing_seed,
+            generation_batch_size=request.generation_batch_size,
             generations=tuple(generations),
         ).to_payload()
-        (seed_session_dir / "seed-session.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        summary_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return SeedAutonomousRecord(
             session_id=request.session_id,
             workspace_path=str(workspace_path),
@@ -349,6 +380,8 @@ class SeedAutonomousController:
             max_runtime_seconds=request.max_runtime_seconds,
             run_until_runtime_exhausted=request.run_until_runtime_exhausted,
             turn_delay_seconds=request.turn_delay_seconds,
+            resume_existing_seed=request.resume_existing_seed,
+            generation_batch_size=request.generation_batch_size,
             generations=tuple(generations),
         )
 
@@ -388,6 +421,8 @@ class SeedAutonomousRecord:
     max_runtime_seconds: int
     run_until_runtime_exhausted: bool = False
     turn_delay_seconds: int = 0
+    resume_existing_seed: bool = False
+    generation_batch_size: int = 0
     generations: tuple[SeedGenerationRecord, ...] = ()
 
     def to_payload(self) -> dict[str, Any]:
@@ -402,8 +437,58 @@ class SeedAutonomousRecord:
             "max_runtime_seconds": self.max_runtime_seconds,
             "run_until_runtime_exhausted": self.run_until_runtime_exhausted,
             "turn_delay_seconds": self.turn_delay_seconds,
+            "resume_existing_seed": self.resume_existing_seed,
+            "generation_batch_size": self.generation_batch_size,
             "generations": [generation.to_payload() for generation in self.generations],
         }
+
+
+def _read_seed_record(path: Path) -> SeedAutonomousRecord:
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise ValueError("seed session must be a JSON object")
+    return _seed_record_from_payload(payload)
+
+
+def _seed_record_from_payload(payload: dict[str, Any]) -> SeedAutonomousRecord:
+    generations = payload.get("generations", ())
+    if not isinstance(generations, list):
+        raise ValueError("seed session generations must be a list")
+
+    return SeedAutonomousRecord(
+        session_id=_required_string(payload, "session_id", "seed session"),
+        workspace_path=_required_string(payload, "workspace_path", "seed session"),
+        organism_id=_required_string(payload, "organism_id", "seed session"),
+        product_name=_required_string(payload, "product_name", "seed session"),
+        seed_goal=_required_string(payload, "seed_goal", "seed session"),
+        status=SeedGenerationStatus(_required_string(payload, "status", "seed session")),
+        generation_limit=int(payload.get("generation_limit", 0)),
+        max_runtime_seconds=int(payload.get("max_runtime_seconds", 0)),
+        run_until_runtime_exhausted=bool(payload.get("run_until_runtime_exhausted", False)),
+        turn_delay_seconds=int(payload.get("turn_delay_seconds", 0)),
+        resume_existing_seed=bool(payload.get("resume_existing_seed", False)),
+        generation_batch_size=int(payload.get("generation_batch_size", 0)),
+        generations=tuple(_seed_generation_record_from_payload(item) for item in generations),
+    )
+
+
+def _seed_generation_record_from_payload(payload: dict[str, Any]) -> SeedGenerationRecord:
+    if not isinstance(payload, dict):
+        raise ValueError("seed generation records must be JSON objects")
+    project_tasks = payload.get("project_tasks", ())
+    if not isinstance(project_tasks, list):
+        raise ValueError("seed generation project_tasks must be a list")
+
+    return SeedGenerationRecord(
+        generation_index=int(payload.get("generation_index", 0)),
+        project_tasks=tuple(AutonomousWorkItem.from_payload(item) for item in project_tasks),
+        verification_commands=tuple(str(command) for command in payload.get("verification_commands", ())),
+        status=SeedGenerationStatus(str(payload.get("status", SeedGenerationStatus.PLANNED.value))),
+        terminal=bool(payload.get("terminal", False)),
+        reason=str(payload.get("reason", "")),
+        inner_checkpoint_path=str(payload.get("inner_checkpoint_path", "")),
+        inner_status=str(payload.get("inner_status", "")),
+    )
 
 
 class SeedMicrotaskPlanner:

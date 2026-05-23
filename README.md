@@ -116,6 +116,19 @@ For full endurance runs, set:
 
 In this mode a terminal/no-work repository does not stop immediately. BioClaw converts terminal state into verification-only generations and keeps running turn after turn until the wall-clock budget is exhausted, a safety policy blocks execution, verification fails, or the generation ceiling is reached.
 
+For scheduler-owned runs, split the burn into resumable one-generation batches:
+
+```json
+{
+  "resume_existing_seed": true,
+  "generation_batch_size": 1,
+  "run_until_runtime_exhausted": true,
+  "turn_delay_seconds": 0
+}
+```
+
+With these fields, repeated `run-seed` invocations append to `.bioclaw/seeds/<session_id>/seed-session.json`. Each batch returns `status = "paused"` until the generation limit, a policy failure, or the external scheduler's wall-clock deadline ends the run. Terminal/no-work repositories become verification-only generations, so the scheduler can keep burning without one long process.
+
 Seeded workflow inherits existing autonomous policy defaults:
 
 - push is denied unless explicitly allowed,
