@@ -150,3 +150,32 @@ class BioCell:
             reason=reason,
         )
         return {"phase": self.phase, "reason": reason}
+
+    def spawn_child(self, *, child_id: str, snapshot_id: str) -> "BioCell":
+        child_identity = self.identity.child(
+            cell_id=child_id,
+            snapshot_id=snapshot_id,
+            permission_profile="sandbox_child",
+        )
+        audit = AuditLedger(cell_id=child_identity.cell_id)
+        child = BioCell(
+            identity=child_identity,
+            genome=self.genome,
+            nucleus=Nucleus(allowed_actions={"execute_job"}, permission_profile="sandbox_child"),
+            membrane=Membrane(
+                allowed_input_keys={"job_id", "type", "value", "required_runtime_seconds", "required_memory_mb"},
+                allowed_output_keys={"result"},
+            ),
+            mitochondria=Mitochondria(max_runtime_seconds=10, max_memory_mb=64),
+            ribosome=Ribosome(allowed_job_types={"echo"}),
+            lysosome=Lysosome(destructive_delete=False),
+            checkpoints=CheckpointSuite(min_health_score=0.8),
+            audit=audit,
+        )
+        audit.record(
+            event_type="cell_bootstrapped",
+            lifecycle_phase=child.phase,
+            reason="mitotic child created",
+            metadata={"parent_id": self.identity.cell_id},
+        )
+        return child

@@ -166,3 +166,10 @@ class RecycleReceipt:
     archive_ref: str
     item_type: str
     metadata: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ReplicationResult:
+    succeeded: bool
+    reason: str
+    child: Any | None = None
