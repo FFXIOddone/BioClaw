@@ -259,14 +259,87 @@ def test_seed_planner_keeps_terminal_repo_active_in_burn_mode(tmp_path):
     plan = SeedMicrotaskPlanner().plan_generation(request, generation_index=2)
 
     assert plan.is_terminal is False
+    assert plan.phase == "structure_verification"
     assert plan.project_tasks == (
         AutonomousWorkItem(
-            task_id="seed_generation_000002.terminal_verification",
+            task_id="seed_generation_000002.structure_verification",
             operation=AutonomousOperation.RUN_COMMAND,
             command="python -c \"print('verify')\"",
         ),
     )
     assert plan.verification_commands == ("python -c \"print('verify')\"",)
+
+
+def test_seed_planner_scales_fleet_count_by_generation_index(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    (workspace / ".gitignore").write_text(".bioclaw/\n", encoding="utf-8")
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": ("python -c \"print('verify')\"",),
+            "run_until_runtime_exhausted": True,
+        }
+    )
+    planner = SeedMicrotaskPlanner()
+
+    first = planner.plan_generation(request, generation_index=1)
+    twenty_eighth = planner.plan_generation(request, generation_index=28)
+
+    assert len(first.fleet_actions) == len(request.structure_fleet)
+    assert len(twenty_eighth.fleet_actions) == len(request.structure_fleet) * 28
+    assert len({action.unit_id for action in twenty_eighth.fleet_actions}) == len(twenty_eighth.fleet_actions)
+    assert any("fleet 028" in action.evidence for action in twenty_eighth.fleet_actions)
+
+
+def test_seed_planner_applies_generation_phase_model(tmp_path):
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    (workspace / ".gitignore").write_text(".bioclaw/\n", encoding="utf-8")
+    request = SeedAutonomousRequest.from_payload(
+        {
+            "session_id": "seed_session_000001",
+            "workspace_path": str(workspace),
+            "organism_id": "organism_seed",
+            "product_name": "Seed Baseline",
+            "seed_goal": "Prepare repository for deterministic autonomous seeding.",
+            "verification_commands": ("python -c \"print('verify')\"",),
+            "run_until_runtime_exhausted": True,
+        }
+    )
+    planner = SeedMicrotaskPlanner()
+
+    structure = planner.plan_generation(request, generation_index=10)
+    planning = planner.plan_generation(request, generation_index=11)
+    final_planning = planner.plan_generation(request, generation_index=30)
+    execution = planner.plan_generation(request, generation_index=31)
+    cleanup = planner.plan_generation(request, generation_index=51)
+    terminal = planner.plan_generation(request, generation_index=52)
+
+    assert structure.phase == "structure_verification"
+    assert structure.project_tasks[0] == AutonomousWorkItem(
+        task_id="seed_generation_000010.structure_verification",
+        operation=AutonomousOperation.RUN_COMMAND,
+        command="python -c \"print('verify')\"",
+    )
+    assert planning.phase == "work_planning"
+    assert planning.project_tasks[0].operation is AutonomousOperation.WRITE_FILE
+    assert planning.project_tasks[0].path == ".bioclaw/plans/generation_000011.md"
+    assert "Planning generation 000011" in planning.project_tasks[0].content
+    assert final_planning.phase == "work_planning"
+    assert final_planning.project_tasks[0].path == ".bioclaw/plans/generation_000030.md"
+    assert execution.phase == "target_execution"
+    assert execution.project_tasks[0].path == ".bioclaw/executions/generation_000031.md"
+    assert "source plan generation 000011" in execution.project_tasks[0].content
+    assert cleanup.phase == "cleanup"
+    assert cleanup.project_tasks[0].path == ".bioclaw/cleanup/generation_000051.md"
+    assert terminal.phase == "terminal"
+    assert terminal.project_tasks == ()
+    assert terminal.is_terminal is True
 
 
 def test_seed_autonomous_request_rejects_non_int_runtime_and_limit_fields(tmp_path):
