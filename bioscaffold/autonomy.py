@@ -44,6 +44,17 @@ class SeedGenerationStatus(str, Enum):
     GENERATION_LIMIT_REACHED = "generation_limit_reached"
 
 
+STRUCTURE_VERIFICATION_GENERATIONS = 10
+WORK_PLANNING_GENERATIONS = 20
+TARGET_EXECUTION_GENERATIONS = 20
+STRUCTURE_VERIFICATION_END = STRUCTURE_VERIFICATION_GENERATIONS
+WORK_PLANNING_START = STRUCTURE_VERIFICATION_END + 1
+WORK_PLANNING_END = STRUCTURE_VERIFICATION_END + WORK_PLANNING_GENERATIONS
+TARGET_EXECUTION_START = WORK_PLANNING_END + 1
+TARGET_EXECUTION_END = WORK_PLANNING_END + TARGET_EXECUTION_GENERATIONS
+CLEANUP_GENERATION = TARGET_EXECUTION_END + 1
+
+
 @dataclass(frozen=True)
 class AutonomousWorkItem:
     task_id: str
@@ -223,6 +234,7 @@ class SeedGenerationPlan:
     project_tasks: tuple[AutonomousWorkItem, ...]
     verification_commands: tuple[str, ...]
     fleet_actions: tuple["BiologicalFleetActionRecord", ...] = ()
+    phase: str = ""
     is_terminal: bool = False
 
     def to_payload(self) -> dict[str, Any]:
@@ -231,6 +243,7 @@ class SeedGenerationPlan:
             "project_tasks": [task.to_payload() for task in self.project_tasks],
             "verification_commands": list(self.verification_commands),
             "fleet_actions": [action.to_payload() for action in self.fleet_actions],
+            "phase": self.phase,
             "is_terminal": self.is_terminal,
         }
 
@@ -274,6 +287,7 @@ class SeedGenerationRecord:
     project_tasks: tuple[AutonomousWorkItem, ...]
     verification_commands: tuple[str, ...]
     fleet_actions: tuple[BiologicalFleetActionRecord, ...] = ()
+    phase: str = ""
     status: SeedGenerationStatus = SeedGenerationStatus.PLANNED
     terminal: bool = False
     reason: str = ""
@@ -286,6 +300,7 @@ class SeedGenerationRecord:
             "project_tasks": [task.to_payload() for task in self.project_tasks],
             "verification_commands": list(self.verification_commands),
             "fleet_actions": [action.to_payload() for action in self.fleet_actions],
+            "phase": self.phase,
             "status": self.status.value,
             "terminal": self.terminal,
             "reason": self.reason,
@@ -350,6 +365,7 @@ class SeedAutonomousController:
                     project_tasks=plan.project_tasks,
                     verification_commands=plan.verification_commands,
                     fleet_actions=plan.fleet_actions,
+                    phase=plan.phase,
                     status=SeedGenerationStatus.COMPLETED,
                     terminal=True,
                     reason="No remaining work to plan.",
@@ -390,6 +406,7 @@ class SeedAutonomousController:
                     project_tasks=plan.project_tasks,
                     verification_commands=plan.verification_commands,
                     fleet_actions=plan.fleet_actions,
+                    phase=plan.phase,
                     status=SeedGenerationStatus.COMPLETED,
                     terminal=False,
                     reason="inner session completed.",
@@ -418,6 +435,7 @@ class SeedAutonomousController:
                 project_tasks=plan.project_tasks,
                 verification_commands=plan.verification_commands,
                 fleet_actions=plan.fleet_actions,
+                phase=plan.phase,
                 status=mapped_status,
                 terminal=True,
                 reason=f"inner session ended with {inner_status.value}.",
@@ -573,11 +591,13 @@ def _seed_generation_record_from_payload(payload: dict[str, Any]) -> SeedGenerat
     if not isinstance(fleet_actions, list):
         raise ValueError("seed generation fleet_actions must be a list")
 
+    generation_index = int(payload.get("generation_index", 0))
     return SeedGenerationRecord(
-        generation_index=int(payload.get("generation_index", 0)),
+        generation_index=generation_index,
         project_tasks=tuple(AutonomousWorkItem.from_payload(item) for item in project_tasks),
         verification_commands=tuple(str(command) for command in payload.get("verification_commands", ())),
         fleet_actions=tuple(BiologicalFleetActionRecord.from_payload(item) for item in fleet_actions),
+        phase=str(payload.get("phase", _seed_generation_phase_for_index(generation_index))),
         status=SeedGenerationStatus(str(payload.get("status", SeedGenerationStatus.PLANNED.value))),
         terminal=bool(payload.get("terminal", False)),
         reason=str(payload.get("reason", "")),
@@ -678,17 +698,117 @@ def _fleet_actions_for_generation(
     if not request.enable_structure_fleet:
         return ()
 
-    return tuple(
-        BiologicalFleetActionRecord(
-            unit_id=unit.unit_id,
-            structure_type=unit.structure_type,
-            biological_action=unit.biological_action,
-            mechanical_function=unit.mechanical_function,
-            status="planned",
-            evidence=f"generation {generation_index:06d} fleet action planned",
+    actions: list[BiologicalFleetActionRecord] = []
+    for fleet_index in range(1, generation_index + 1):
+        for unit in request.structure_fleet:
+            actions.append(
+                BiologicalFleetActionRecord(
+                    unit_id=f"{unit.unit_id}.fleet_{fleet_index:03d}",
+                    structure_type=unit.structure_type,
+                    biological_action=unit.biological_action,
+                    mechanical_function=unit.mechanical_function,
+                    status="planned",
+                    evidence=(
+                        f"generation {generation_index:06d} fleet {fleet_index:03d} "
+                        f"{unit.structure_type} action planned"
+                    ),
+                )
+            )
+    return tuple(actions)
+
+
+def _seed_generation_phase_for_index(generation_index: int) -> str:
+    if generation_index <= STRUCTURE_VERIFICATION_END:
+        return "structure_verification"
+    if generation_index <= WORK_PLANNING_END:
+        return "work_planning"
+    if generation_index <= TARGET_EXECUTION_END:
+        return "target_execution"
+    if generation_index == CLEANUP_GENERATION:
+        return "cleanup"
+    return "terminal"
+
+
+def _work_planning_content(request: SeedAutonomousRequest, generation_index: int) -> str:
+    execution_generation = TARGET_EXECUTION_START + (generation_index - WORK_PLANNING_START)
+    return "\n".join(
+        (
+            f"# Planning generation {generation_index:06d}",
+            "",
+            f"Seed goal: {request.seed_goal}",
+            f"Target execution generation: {execution_generation:06d}",
+            "Scope: define one bounded, policy-checked target-work slice.",
+            "Required output: execution generation must follow this plan and run verification.",
         )
-        for unit in request.structure_fleet
     )
+
+
+def _target_execution_content(generation_index: int) -> str:
+    source_plan_generation = WORK_PLANNING_START + (generation_index - TARGET_EXECUTION_START)
+    return "\n".join(
+        (
+            f"# Target execution generation {generation_index:06d}",
+            "",
+            f"Execute source plan generation {source_plan_generation:06d}.",
+            "Target work must remain bounded to one small project slice.",
+            "Verification must run after the slice before the generation can complete.",
+        )
+    )
+
+
+def _cleanup_content(generation_index: int) -> str:
+    return "\n".join(
+        (
+            f"# Cleanup generation {generation_index:06d}",
+            "",
+            "Close the BioClaw run after all planned target-work generations complete.",
+            "Collect final verification state and leave the repository clean.",
+        )
+    )
+
+
+def _phase_project_tasks(
+    request: SeedAutonomousRequest,
+    generation_index: int,
+    phase: str,
+    verification_commands: tuple[str, ...],
+) -> tuple[AutonomousWorkItem, ...]:
+    if phase == "structure_verification":
+        return (
+            AutonomousWorkItem(
+                task_id=f"seed_generation_{generation_index:06d}.structure_verification",
+                operation=AutonomousOperation.RUN_COMMAND,
+                command=verification_commands[0],
+            ),
+        )
+    if phase == "work_planning":
+        return (
+            AutonomousWorkItem(
+                task_id=f"seed_generation_{generation_index:06d}.work_plan",
+                operation=AutonomousOperation.WRITE_FILE,
+                path=f".bioclaw/plans/generation_{generation_index:06d}.md",
+                content=_work_planning_content(request, generation_index),
+            ),
+        )
+    if phase == "target_execution":
+        return (
+            AutonomousWorkItem(
+                task_id=f"seed_generation_{generation_index:06d}.target_execution",
+                operation=AutonomousOperation.WRITE_FILE,
+                path=f".bioclaw/executions/generation_{generation_index:06d}.md",
+                content=_target_execution_content(generation_index),
+            ),
+        )
+    if phase == "cleanup":
+        return (
+            AutonomousWorkItem(
+                task_id=f"seed_generation_{generation_index:06d}.cleanup",
+                operation=AutonomousOperation.WRITE_FILE,
+                path=f".bioclaw/cleanup/generation_{generation_index:06d}.md",
+                content=_cleanup_content(generation_index),
+            ),
+        )
+    return ()
 
 
 class SeedMicrotaskPlanner:
@@ -698,30 +818,33 @@ class SeedMicrotaskPlanner:
         _ = _repo_has_local_fact(workspace_path / "README.md")
         _ = _repo_has_local_fact(workspace_path / "pyproject.toml")
         fleet_actions = _fleet_actions_for_generation(request, generation_index)
+        phase = _seed_generation_phase_for_index(generation_index)
 
         existing_gitignore = workspace_path / ".gitignore"
         seed_gitignore_entries = _seed_gitignore_entries(workspace_path)
         verification_commands = request.verification_commands or (baseline_command,)
         if _is_gitignore_seed_ready(existing_gitignore, seed_gitignore_entries):
             if request.run_until_runtime_exhausted:
+                phase_tasks = _phase_project_tasks(
+                    request,
+                    generation_index,
+                    phase,
+                    verification_commands,
+                )
                 return SeedGenerationPlan(
                     generation_index=generation_index,
-                    project_tasks=(
-                        AutonomousWorkItem(
-                            task_id=f"seed_generation_{generation_index:06d}.terminal_verification",
-                            operation=AutonomousOperation.RUN_COMMAND,
-                            command=verification_commands[0],
-                        ),
-                    ),
-                    verification_commands=verification_commands,
+                    project_tasks=phase_tasks,
+                    verification_commands=verification_commands if phase_tasks else (),
                     fleet_actions=fleet_actions,
-                    is_terminal=False,
+                    phase=phase,
+                    is_terminal=phase == "terminal",
                 )
             return SeedGenerationPlan(
                 generation_index=generation_index,
                 project_tasks=(),
                 verification_commands=(),
                 fleet_actions=fleet_actions,
+                phase=phase,
                 is_terminal=True,
             )
 
@@ -750,6 +873,7 @@ class SeedMicrotaskPlanner:
             project_tasks=tasks,
             verification_commands=verification_commands,
             fleet_actions=fleet_actions,
+            phase=phase,
             is_terminal=False,
         )
 
